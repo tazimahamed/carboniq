@@ -2,4 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-body { background: #f6f7f4; color: #1c2a22; }
+:root {
+  --ink: #0b1f17;
+  --forest: #0f3d2e;
+  --leaf: #1f8a5b;
+  --lime: #c6f36b;
+  --paper: #f5f3ec;
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+/* হালকা গ্রিড পটভূমি */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(198, 243, 107, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(198, 243, 107, 0.07) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Mouse-এর সাথে চলা আলো */
+.spotlight {
+  background: radial-gradient(600px circle at var(--mx, 50%) var(--my, 30%), rgba(198, 243, 107, 0.16), transparent 45%);
+}
+
+/* Card-এর ভেতরে mouse-এর আলো */
+.glow-card { position: relative; overflow: hidden; }
+.glow-card::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(360px circle at var(--cx, 50%) var(--cy, 50%), rgba(31, 138, 91, 0.14), transparent 60%);
+}
+.glow-card:hover::before { opacity: 1; }
+
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+@keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+.floaty { animation: floaty 6s ease-in-out infinite; }
+
+@keyframes scan { 0% { top: 0 } 100% { top: 100% } }
+.scanline { position: absolute; left: 0; right: 0; height: 2px; background: var(--lime); box-shadow: 0 0 18px var(--lime); animation: scan 2.4s ease-in-out infinite alternate; }
+
+@keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.marquee { animation: marquee 30s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .floaty, .scanline, .marquee { animation: none; }
+  .reveal { opacity: 1; transform: none; }
+}
+
+@media print { body { background: white; } }

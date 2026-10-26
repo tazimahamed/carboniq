@@ -14,9 +14,9 @@ export function useRecords() {
 
   async function load() {
     setLoading(true); setError("");
-    const r = await fetch("/api/records").then((x) => x.json());
+    const r = await fetch("/api/records", { cache: "no-store" }).then((x) => x.json());
     if (r.error) setError(r.error); else setRows(r.records);
-    const v = await fetch("/api/ledger/verify").then((x) => x.json());
+    const v = await fetch("/api/ledger/verify", { cache: "no-store" }).then((x) => x.json());
     setValid(v.error ? null : v.valid);
     setLoading(false);
   }

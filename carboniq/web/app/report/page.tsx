@@ -1,6 +1,7 @@
 "use client";
 import { useRecords } from "@/lib/useRecords";
 import { ACTIVITY_LABEL } from "@/lib/factors";
+import Shell from "@/components/Shell";
 
 export default function Report() {
   const { rows, valid, error, loading, total } = useRecords();
@@ -9,15 +10,13 @@ export default function Report() {
   const lastHash = rows.length ? rows[rows.length - 1].hash : "—";
   const today = new Date().toISOString().slice(0, 10);
 
-  if (loading) return <p>Report তৈরি হচ্ছে...</p>;
-  if (error) return <p className="text-red-600">{error}</p>;
+  if (loading) return <Shell eyebrow="GHG Inventory" title="Report"><p>Report তৈরি হচ্ছে...</p></Shell>;
+  if (error) return <Shell eyebrow="GHG Inventory" title="Report"><p className="text-red-600">{error}</p></Shell>;
 
   return (
-    <article className="space-y-6 bg-white p-6 print:p-0">
-      <div className="flex items-start justify-between print:hidden">
-        <p className="text-sm text-gray-500">Print window-এ "Save as PDF" নির্বাচন করুন</p>
-        <button onClick={() => window.print()} className="rounded bg-emerald-700 px-4 py-2 text-white">PDF হিসেবে save</button>
-      </div>
+    <Shell eyebrow="GHG Inventory" title="Report" sub={"Print window-এ \"Save as PDF\" নির্বাচন করুন"}
+      right={<button onClick={() => window.print()} className="rounded-full bg-[var(--forest)] px-5 py-2.5 text-sm font-medium text-white transition hover:scale-105 hover:shadow-lg">PDF হিসেবে save ↓</button>}>
+    <article className="space-y-6 rounded-2xl border border-black/5 bg-white p-8 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
 
       <header className="border-b pb-4">
         <p className="text-xs uppercase tracking-wide text-emerald-700">CarbonIQ BD · GHG Inventory Summary · DEMO (synthetic data)</p>
@@ -66,5 +65,6 @@ export default function Report() {
         এটা স্বাধীনভাবে নিরীক্ষিত (L4) report নয়। Demo factory-র সব সংখ্যা synthetic।
       </footer>
     </article>
+    </Shell>
   );
 }
