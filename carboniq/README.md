@@ -2,30 +2,22 @@
 
 বিলের ছবি থেকে buyer-ready কার্বন report — বাংলাদেশের garment শিল্পের জন্য।
 
-## Folder
+## কাঠামো
 ```
-api/        FastAPI backend (হিসাব, OCR, ledger)
-supabase/   database schema (SQL)
-web/        Next.js frontend (পরে আসবে)
-data/       গুণক (emission factor) ও demo data
+web/        Next.js — website + API + OCR (Tesseract.js) — Vercel-এ চলে
+supabase/   database schema.sql আর seed.sql
+api/        পুরনো Python version (আর লাগবে না, মুছে দিতে পারো)
+data/       গুণক (emission factor)
 ```
 
-## Backend চালানো (নিজের computer-এ)
+## নিজের computer-এ চালানো
 ```bash
-cd api
-python -m venv .venv
-# Windows:  .venv\Scripts\activate
-# Mac/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+cd web
+npm install
+copy .env.example .env.local   # তারপর Supabase-এর মান বসাও
+npm run dev
 ```
-Browser-এ খোলো: http://127.0.0.1:8000/docs
-
-## Test
-```bash
-cd api
-pytest
-```
+খোলো: http://localhost:3000
 
 ## সতর্কতা
-`data/factors_seed.csv`-এর গুণকগুলো **উদাহরণ মান**। Submission-এর আগে UK DESNZ 2026 আর Ember থেকে আসল মান বসাতে হবে।
+`web/lib/factors.ts`-এর গুণকগুলো **উদাহরণ মান**। Submission-এর আগে UK DESNZ 2026 আর Ember থেকে আসল মান বসাতে হবে।
