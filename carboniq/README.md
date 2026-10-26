@@ -6,7 +6,7 @@
 ```
 web/        Next.js — website + API + OCR (Tesseract.js) — Vercel-এ চলে
 supabase/   database schema.sql আর seed.sql
-api/        পুরনো Python version (আর লাগবে না, মুছে দিতে পারো)
+data/        (গুণক এখন web/lib/factors.ts-এ)
 data/       গুণক (emission factor)
 ```
 

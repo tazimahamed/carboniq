@@ -1,5 +1,6 @@
 import { db } from "@/lib/supabase";
 import { DEMO_FACTORY_ID } from "@/lib/demo";
+import { errMsg } from "@/lib/record";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,10 @@ export async function GET() {
       id: String(e.id), hash: e.hash,
       activity: e.payload.activity, quantity: e.payload.quantity, unit: e.payload.unit,
       period_month: e.payload.period_month, scope: e.payload.scope, kg_co2e: e.payload.kg_co2e,
+      factor: e.payload.factor, factor_source: e.payload.factor_source, factor_version: e.payload.factor_version,
     }));
     return Response.json({ records });
-  } catch (err: unknown) {
-    return Response.json({ error: (err as Error).message }, { status: 500 });
+  } catch (err) {
+    return Response.json({ error: errMsg(err) }, { status: 500 });
   }
 }

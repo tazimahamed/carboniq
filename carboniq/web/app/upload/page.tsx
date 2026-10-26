@@ -14,6 +14,7 @@ export default function Upload() {
   const [month, setMonth] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
 
   async function runOcr(file: File) {
     setPreview(URL.createObjectURL(file));
@@ -35,6 +36,7 @@ export default function Upload() {
   async function confirm() {
     setError("");
     const unit = FACTORS.find((f) => f.activity === activity)!.unit;
+    if (!confirmed) { setError("আগে ছবির সাথে সংখ্যা মিলিয়ে টিক দিন"); return; }
     const res = await fetch("/api/calculate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -67,6 +69,7 @@ export default function Upload() {
           <label className="block text-sm">মাস
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="mt-1 w-full rounded border p-2" />
           </label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /> আমি বিলের সাথে সংখ্যা মিলিয়ে দেখেছি</label>
           <button onClick={confirm} disabled={!quantity || !month}
             className="w-full rounded bg-emerald-700 py-2 text-white disabled:opacity-40">
             নিশ্চিত করুন ও হিসাব করুন
