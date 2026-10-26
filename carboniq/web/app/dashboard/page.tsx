@@ -10,8 +10,12 @@ export default function Dashboard() {
 
   async function seed() {
     setSeeding("Demo data বানানো হচ্ছে... (৩০ সেকেন্ড পর্যন্ত লাগতে পারে)");
-    const j = await fetch("/api/demo/seed", { method: "POST" }).then((r) => r.json());
-    setSeeding(j.error ? j.error : `${j.months} মাসের demo data যোগ হয়েছে`);
+    try {
+      const j = await fetch("/api/demo/seed", { method: "POST" }).then((r) => r.json());
+      setSeeding(j.error ? j.error : `${j.months} মাসের demo data যোগ হয়েছে (${j.records}টা record)`);
+    } catch {
+      setSeeding("Server সময়মতো উত্তর দেয়নি — page refresh করে আবার চেষ্টা করুন");
+    }
     reload();
   }
 
