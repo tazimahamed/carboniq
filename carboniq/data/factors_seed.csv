@@ -1,0 +1,5 @@
+activity,unit,kg_co2e_per_unit,scope,source,license,year,version
+electricity,kWh,0.67,2,EXAMPLE - replace with Ember Bangladesh,CC-BY-4.0,2026,example
+natural_gas,m3,2.02,1,EXAMPLE - replace with UK DESNZ 2026,OGL-3.0,2026,example
+diesel,litre,2.51,1,EXAMPLE - replace with UK DESNZ 2026,OGL-3.0,2026,example
+lpg,kg,2.94,1,EXAMPLE - replace with UK DESNZ 2026,OGL-3.0,2026,example
