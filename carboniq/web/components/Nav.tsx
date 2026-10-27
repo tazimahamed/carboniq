@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/upload", label: "বিল upload" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/report", label: "Report" },
+  { href: "/developers", label: "API · MCP" },
 ];
 
 export default function Nav() {
