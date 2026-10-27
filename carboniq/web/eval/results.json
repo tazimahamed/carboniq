@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T22:24:30.050Z",
+  "generated_at": "2026-10-27T22:30:10.867Z",
   "node": "v22.23.4",
   "suites": [
     {
@@ -217,13 +217,18 @@
           "detail": "kwh=58"
         },
         {
+          "name": "★ browser-এর পুরো আসল OCR (ben+eng, দুই পাঠ) → ৫৮ kWh, জুন ২০২১",
+          "pass": true,
+          "detail": "kwh=58 month=2021-06"
+        },
+        {
           "name": "\"KWH Charge 243.02\" (টাকা) ইউনিট হিসেবে নেয় না",
           "pass": true,
           "detail": "kwh=58"
         }
       ],
-      "passed": 9,
-      "total": 9
+      "passed": 10,
+      "total": 10
     },
     {
       "id": "mcp",
@@ -539,7 +544,7 @@
     }
   ],
   "summary": {
-    "passed": 95,
-    "total": 95
+    "passed": 96,
+    "total": 96
   }
 }

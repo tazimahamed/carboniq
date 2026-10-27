@@ -100,6 +100,9 @@ const suite = (id: string, title: string, what: string) => { const s = { id, tit
   s.cases.push({ name: "browser-এর আসল লাইন: তারিখের \"/\" অঙ্ক হয়ে গেছে (10670672021) → তবু ৫৮", pass: bb.kwh === 58, detail: `kwh=${bb.kwh}` });
   const mix = parseBill([bline, "Previous :06/05/2021 © 6519 . - Sub-Total : 303. 02"]);
   s.cases.push({ name: "এক পাঠে ৬→৪, অন্য পাঠে ঠিক → এক অঙ্ক ভুল ধরে ৫৮", pass: mix.kwh === 58, detail: `kwh=${mix.kwh}` });
+  const bw = JSON.parse(readFileSync(new URL("./fixtures/desco_2021_06_browser.json", import.meta.url), "utf8"));
+  const real = parseBill([bw.pass1, bw.pass2]);
+  s.cases.push({ name: "★ browser-এর পুরো আসল OCR (ben+eng, দুই পাঠ) → ৫৮ kWh, জুন ২০২১", pass: real.kwh === 58 && real.month === "2021-06", detail: `kwh=${real.kwh} month=${real.month}` });
   s.cases.push({ name: "\"KWH Charge 243.02\" (টাকা) ইউনিট হিসেবে নেয় না", pass: both.kwh !== 243, detail: `kwh=${both.kwh}` });
 }
 
