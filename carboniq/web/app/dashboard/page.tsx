@@ -14,6 +14,16 @@ export default function Dashboard() {
   const [seeding, setSeeding] = useState("");
   const [hover, setHover] = useState<string | null>(null);
 
+  async function reset() {
+    if (!confirm("Demo-র সব ডেটা আর upload করা বিল মুছে নতুন ১২ মাসের demo data বসানো হবে। চালিয়ে যাবেন?")) return;
+    setSeeding("Demo আবার শুরু হচ্ছে...");
+    try {
+      const j = await fetch("/api/demo/reset", { method: "POST" }).then((r) => r.json());
+      setSeeding(j.error ? j.error : `Demo নতুন করে শুরু হয়েছে (${j.records}টা record)`);
+    } catch { setSeeding("Server সময়মতো উত্তর দেয়নি — আবার চেষ্টা করুন"); }
+    reload();
+  }
+
   async function seed() {
     setSeeding("Demo data বানানো হচ্ছে...");
     try {
@@ -45,7 +55,10 @@ export default function Dashboard() {
 
   return (
     <Shell eyebrow="Demo Knit Factory · গাজীপুর" title="Dashboard" sub="নিশ্চিত ও hash-সিল করা record থেকে"
-      right={<Link href="/report" className="rounded-full bg-[var(--forest)] px-5 py-2.5 text-sm font-medium text-white transition hover:scale-105 hover:shadow-lg">Report (PDF) →</Link>}>
+      right={<div className="flex items-center gap-2">
+        <button onClick={reset} className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-gray-600 transition hover:border-black/30" title="Demo-র সব ডেটা মুছে নতুন করে শুরু">↺ Demo reset</button>
+        <Link href="/report" className="rounded-full bg-[var(--forest)] px-5 py-2.5 text-sm font-medium text-white transition hover:scale-105 hover:shadow-lg">Report (PDF) →</Link>
+      </div>}>
       {error && <p className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

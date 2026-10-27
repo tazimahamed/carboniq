@@ -1,4 +1,5 @@
 "use client";
+import { adaptiveBinarize, erode2, toGray } from "./ocrPrep";
 // যেকোনো বিলের ফাইল → একটা পরিষ্কার JPG ছবি (OCR আর প্রমাণ রাখার জন্য)
 // সমর্থিত: JPG, PNG, WebP, GIF, BMP, HEIC/HEIF (iPhone), PDF (প্রথম পাতা)
 
@@ -67,4 +68,28 @@ export async function toBillImage(file: File, maxSide = 1800): Promise<{ blob: B
 export async function sha256Hex(blob: Blob) {
   const buf = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ===== OCR-এর জন্য দুই রকম ছবি =====
+
+function grayToCanvas(g: Uint8ClampedArray, w: number, h: number) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const ctx = c.getContext("2d")!; const img = ctx.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = g[i]; img.data[i * 4 + 3] = 255; }
+  ctx.putImageData(img, 0, 0); return c;
+}
+
+/** (১) gray + contrast, (২) ১.৫ গুণ বড় করে adaptive threshold + erode */
+export async function ocrVariants(jpeg: Blob): Promise<HTMLCanvasElement[]> {
+  const bmp = await createImageBitmap(jpeg);
+  const make = (scale: number) => {
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const ctx = c.getContext("2d")!; ctx.drawImage(bmp, 0, 0, w, h);
+    return { w, h, gray: toGray(ctx.getImageData(0, 0, w, h).data, w * h) };
+  };
+  const a = make(1);
+  const scale = Math.min(1.5, 2700 / Math.max(bmp.width, bmp.height)); // খুব বড় ছবিতে memory বাঁচাতে
+  const b = make(scale);
+  return [grayToCanvas(a.gray, a.w, a.h), grayToCanvas(erode2(adaptiveBinarize(b.gray, b.w, b.h), b.w, b.h), b.w, b.h)];
 }

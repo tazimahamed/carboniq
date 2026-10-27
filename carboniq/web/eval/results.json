@@ -1,0 +1,525 @@
+{
+  "generated_at": "2026-10-27T22:06:09.379Z",
+  "node": "v22.23.4",
+  "suites": [
+    {
+      "id": "engine",
+      "title": "নির্গমন হিসাব",
+      "what": "হাতে হিসাব করা মানের সাথে engine-এর ফল (±০.০০১ kg)",
+      "cases": [
+        {
+          "name": "electricity 120000 kWh",
+          "pass": true,
+          "detail": "83520 vs 83520"
+        },
+        {
+          "name": "electricity 1 kWh",
+          "pass": true,
+          "detail": "0.696 vs 0.696"
+        },
+        {
+          "name": "natural_gas 45000 m3",
+          "pass": true,
+          "detail": "91184.85 vs 91184.85"
+        },
+        {
+          "name": "diesel 3200 litre",
+          "pass": true,
+          "detail": "8267.328 vs 8267.328"
+        },
+        {
+          "name": "lpg 500 litre",
+          "pass": true,
+          "detail": "778.565 vs 778.565"
+        },
+        {
+          "name": "electricity 0 kWh",
+          "pass": true,
+          "detail": "0 vs 0"
+        },
+        {
+          "name": "একই input → একই ফল (deterministic)",
+          "pass": true
+        },
+        {
+          "name": "ভুল input আটকায়: electricity -5",
+          "pass": true
+        },
+        {
+          "name": "ভুল input আটকায়: coal 10",
+          "pass": true
+        },
+        {
+          "name": "ভুল input আটকায়: electricity NaN",
+          "pass": true
+        }
+      ],
+      "passed": 10,
+      "total": 10
+    },
+    {
+      "id": "ledger",
+      "title": "Hash ledger অখণ্ডতা",
+      "what": "Record বদলানো, মুছে ফেলা, ক্রম বদলানো — সব ধরা পড়ে কিনা",
+      "cases": [
+        {
+          "name": "অক্ষত chain → valid",
+          "pass": true
+        },
+        {
+          "name": "মাঝের record-এর সংখ্যা বদলানো → ধরা পড়ে",
+          "pass": true
+        },
+        {
+          "name": "একটা record মুছে ফেলা → ধরা পড়ে",
+          "pass": true
+        },
+        {
+          "name": "দুটো record-এর ক্রম বদলানো → ধরা পড়ে",
+          "pass": true
+        },
+        {
+          "name": "শেষ hash বদলানো → ধরা পড়ে",
+          "pass": true
+        },
+        {
+          "name": "নিয়ম মেনে নতুন record যোগ → valid থাকে",
+          "pass": true
+        }
+      ],
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "id": "parser",
+      "title": "বিল থেকে ইউনিট ও মাস বের করা",
+      "what": "নানা ধরনের বিলের লেখা (বাংলা/English) থেকে সঠিক kWh, মাস আর মিটার যাচাই",
+      "cases": [
+        {
+          "name": "Units Consumed: 126,500 kWh",
+          "pass": true,
+          "detail": "kwh=126500 month=2026-11"
+        },
+        {
+          "name": "Multiplying Factor :1",
+          "pass": true,
+          "detail": "kwh=900 month=null"
+        },
+        {
+          "name": "ব্যবহৃত ইউনিট: ২৩৫",
+          "pass": true,
+          "detail": "kwh=235 month=2026-07"
+        },
+        {
+          "name": "মোট ইউনিট ৩৪৫",
+          "pass": true,
+          "detail": "kwh=345 month=null"
+        },
+        {
+          "name": "Total 1,20,000 kWh",
+          "pass": true,
+          "detail": "kwh=120000 month=null"
+        },
+        {
+          "name": "Consumption Units 4120 for 03/2026",
+          "pass": true,
+          "detail": "kwh=4120 month=2026-03"
+        },
+        {
+          "name": "পূর্ববর্তী রিডিং: ১২৩০০",
+          "pass": true,
+          "detail": "kwh=235 month=null"
+        },
+        {
+          "name": "Previous Reading 50000",
+          "pass": true,
+          "detail": "kwh=1640 month=null"
+        },
+        {
+          "name": "Amount Tk 5,230 Due date 2026-08-20",
+          "pass": true,
+          "detail": "kwh=null month=2026-08"
+        },
+        {
+          "name": "মিটার রিডিং মিললে ok=true",
+          "pass": true
+        },
+        {
+          "name": "মিটার রিডিং না মিললে ok=false (ভুল/নকল বিল ধরা)",
+          "pass": true
+        }
+      ],
+      "passed": 11,
+      "total": 11
+    },
+    {
+      "id": "ocr",
+      "title": "OCR → সংখ্যা (end-to-end)",
+      "what": "বিলের ছবি → Tesseract (ben+eng) → parser → সঠিক kWh ও মাস। নমুনা বিল synthetic।",
+      "cases": [
+        {
+          "name": "sample_bill_nov2026.jpg",
+          "pass": true,
+          "detail": "kwh=126500 month=2026-11 meter=true"
+        },
+        {
+          "name": "sample_bill_dec2026.jpg",
+          "pass": true,
+          "detail": "kwh=118200 month=2026-12 meter=true"
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    {
+      "id": "real",
+      "title": "আসল DESCO বিল (জুন ২০২১)",
+      "what": "আসল বিলের ছবি → দুই রকম পরিষ্কার → Tesseract → parser। বিলে লেখা: ব্যবহৃত ৫৮ kWh, বর্তমান ৬,৫৭৭, পূর্ববর্তী ৬,৫১৯",
+      "cases": [
+        {
+          "name": "শুধু এক রকম ছবি → সঠিক ইউনিট পায় না (তাই দুই রকম লাগে)",
+          "pass": true,
+          "detail": "kwh=2058"
+        },
+        {
+          "name": "দুই রকম মিলিয়ে → ৫৮ kWh",
+          "pass": true,
+          "detail": "kwh=58"
+        },
+        {
+          "name": "মাস → জুন ২০২১ (OCR বছর ভুল পড়লেও)",
+          "pass": true,
+          "detail": "month=2021-06"
+        },
+        {
+          "name": "মিটার: ৬,৫৭৭ − ৬,৫১৯ (৬→৪ ভুল পড়াটা বাদ দিয়ে)",
+          "pass": true,
+          "detail": "{\"previous\":6519,\"present\":6577,\"multiplier\":1,\"expected\":58,\"ok\":false,\"printed\":null}"
+        },
+        {
+          "name": "\"KWH Charge 243.02\" (টাকা) ইউনিট হিসেবে নেয় না",
+          "pass": true,
+          "detail": "kwh=58"
+        }
+      ],
+      "passed": 5,
+      "total": 5
+    },
+    {
+      "id": "mcp",
+      "title": "MCP server contract",
+      "what": "MCP protocol-এর নিয়ম, ৪টা tool-এর ফল, ভুল request-এ সঠিক error",
+      "cases": [
+        {
+          "name": "initialize → protocolVersion + tools capability",
+          "pass": true
+        },
+        {
+          "name": "notification-এর উত্তর নেই",
+          "pass": true
+        },
+        {
+          "name": "tools/list → ৪টা tool, প্রত্যেকটায় inputSchema",
+          "pass": true
+        },
+        {
+          "name": "get_emissions মোট = ledger-এর যোগফল",
+          "pass": true,
+          "detail": "2214.12 vs 2214.12"
+        },
+        {
+          "name": "explain_calculation → সূত্র, উৎস, license, বিলের hash",
+          "pass": true
+        },
+        {
+          "name": "verify_ledger → valid",
+          "pass": true
+        },
+        {
+          "name": "অজানা tool → -32602",
+          "pass": true
+        },
+        {
+          "name": "অজানা method → -32601",
+          "pass": true
+        },
+        {
+          "name": "ভুল argument → isError (crash নয়)",
+          "pass": true
+        },
+        {
+          "name": "লেখার কোনো tool নেই (সব readOnlyHint)",
+          "pass": true
+        }
+      ],
+      "passed": 10,
+      "total": 10
+    },
+    {
+      "id": "routing",
+      "title": "Copilot: প্রশ্ন → সঠিক tool",
+      "what": "৩০টা বাংলা/English প্রশ্ন, প্রতিটার প্রত্যাশিত intent আর মাস",
+      "cases": [
+        {
+          "name": "মোট নির্গমন কত?",
+          "pass": true,
+          "detail": "{\"kind\":\"total\"}"
+        },
+        {
+          "name": "আমাদের কার্বন কত হয়েছে",
+          "pass": true,
+          "detail": "{\"kind\":\"total\"}"
+        },
+        {
+          "name": "how much emission in 2026",
+          "pass": true,
+          "detail": "{\"kind\":\"total\",\"from\":\"2026-01\",\"to\":\"2026-12\"}"
+        },
+        {
+          "name": "total co2",
+          "pass": true,
+          "detail": "{\"kind\":\"total\"}"
+        },
+        {
+          "name": "নভেম্বর ২০২৬-এ কত হয়েছে?",
+          "pass": true,
+          "detail": "{\"kind\":\"total\",\"month\":\"2026-11\",\"from\":\"2026-11\",\"to\":\"2026-11\"}"
+        },
+        {
+          "name": "ডিসেম্বর ২০২৫-এ গ্যাস কত?",
+          "pass": true,
+          "detail": "{\"kind\":\"total\",\"month\":\"2025-12\",\"from\":\"2025-12\",\"to\":\"2025-12\"}"
+        },
+        {
+          "name": "December 2025 total",
+          "pass": true,
+          "detail": "{\"kind\":\"total\",\"month\":\"2025-12\",\"from\":\"2025-12\",\"to\":\"2025-12\"}"
+        },
+        {
+          "name": "২০২৬-০৩ এ নির্গমন",
+          "pass": true,
+          "detail": "{\"kind\":\"total\",\"month\":\"2026-03\",\"from\":\"2026-03\",\"to\":\"2026-03\"}"
+        },
+        {
+          "name": "কোন মাসে সবচেয়ে বেশি?",
+          "pass": true,
+          "detail": "{\"kind\":\"peak\"}"
+        },
+        {
+          "name": "highest month",
+          "pass": true,
+          "detail": "{\"kind\":\"peak\"}"
+        },
+        {
+          "name": "সবচেয়ে কম কোন মাসে",
+          "pass": true,
+          "detail": "{\"kind\":\"peak\"}"
+        },
+        {
+          "name": "মে মাসে কেন বাড়ল?",
+          "pass": true,
+          "detail": "{\"kind\":\"change\",\"month\":\"2026-05\"}"
+        },
+        {
+          "name": "why did it increase in may",
+          "pass": true,
+          "detail": "{\"kind\":\"change\",\"month\":\"2026-05\"}"
+        },
+        {
+          "name": "গত মাসের তুলনায় কমেছে?",
+          "pass": true,
+          "detail": "{\"kind\":\"change\"}"
+        },
+        {
+          "name": "জুলাই ২০২৬ এ কেন কমে গেল",
+          "pass": true,
+          "detail": "{\"kind\":\"change\",\"month\":\"2026-07\"}"
+        },
+        {
+          "name": "নভেম্বরের বিদ্যুৎ কীভাবে হিসাব হলো?",
+          "pass": true,
+          "detail": "{\"kind\":\"explain\",\"month\":\"2026-11\",\"activity\":\"electricity\"}"
+        },
+        {
+          "name": "how was november electricity calculated",
+          "pass": true,
+          "detail": "{\"kind\":\"explain\",\"month\":\"2026-11\",\"activity\":\"electricity\"}"
+        },
+        {
+          "name": "অক্টোবরের গ্যাসের হিসাবের প্রমাণ দেখাও",
+          "pass": true,
+          "detail": "{\"kind\":\"explain\",\"month\":\"2026-10\",\"activity\":\"natural_gas\"}"
+        },
+        {
+          "name": "explain march 2026",
+          "pass": true,
+          "detail": "{\"kind\":\"explain\",\"month\":\"2026-03\"}"
+        },
+        {
+          "name": "Ledger কি অক্ষত?",
+          "pass": true,
+          "detail": "{\"kind\":\"verify\"}"
+        },
+        {
+          "name": "কেউ কি ডেটা বদলেছে?",
+          "pass": true,
+          "detail": "{\"kind\":\"verify\"}"
+        },
+        {
+          "name": "verify the hash chain",
+          "pass": true,
+          "detail": "{\"kind\":\"verify\"}"
+        },
+        {
+          "name": "এই ডেটা কি বিশ্বাস করা যায়",
+          "pass": true,
+          "detail": "{\"kind\":\"verify\"}"
+        },
+        {
+          "name": "কোন গুণক ব্যবহার হয়েছে?",
+          "pass": true,
+          "detail": "{\"kind\":\"factors\"}"
+        },
+        {
+          "name": "Ember factor কত?",
+          "pass": true,
+          "detail": "{\"kind\":\"factors\"}"
+        },
+        {
+          "name": "emission factor source",
+          "pass": true,
+          "detail": "{\"kind\":\"factors\"}"
+        },
+        {
+          "name": "DESNZ license",
+          "pass": true,
+          "detail": "{\"kind\":\"factors\"}"
+        },
+        {
+          "name": "Scope 1 মানে কী?",
+          "pass": true,
+          "detail": "{\"kind\":\"scope\"}"
+        },
+        {
+          "name": "what is scope 2",
+          "pass": true,
+          "detail": "{\"kind\":\"scope\"}"
+        },
+        {
+          "name": "হ্যালো",
+          "pass": true,
+          "detail": "{\"kind\":\"help\"}"
+        }
+      ],
+      "passed": 30,
+      "total": 30
+    },
+    {
+      "id": "guardrail",
+      "title": "AI guardrail",
+      "what": "AI-এর বানানো সংখ্যা, অস্বীকার, মূল সংখ্যা বাদ — সব আটকায়; সঠিক উত্তর পাস করে",
+      "cases": [
+        {
+          "name": "সঠিক বাংলা উত্তর",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "সঠিক English সংখ্যা",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "গোল করা সংখ্যা সহ",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "অস্বীকার",
+          "pass": true,
+          "detail": "missing ২,০৯২.৯৯"
+        },
+        {
+          "name": "বানানো সংখ্যা",
+          "pass": true,
+          "detail": "unknown 150"
+        },
+        {
+          "name": "বানানো শতাংশ",
+          "pass": true,
+          "detail": "unknown 37"
+        },
+        {
+          "name": "মূল সংখ্যা বাদ",
+          "pass": true,
+          "detail": "missing ২,০৯২.৯৯"
+        },
+        {
+          "name": "ভুল মোট",
+          "pass": true,
+          "detail": "empty"
+        },
+        {
+          "name": "ফাঁকা",
+          "pass": true,
+          "detail": "empty"
+        },
+        {
+          "name": "prompt injection-এর মতো",
+          "pass": true,
+          "detail": "missing ২,০৯২.৯৯"
+        }
+      ],
+      "passed": 10,
+      "total": 10
+    },
+    {
+      "id": "copilot",
+      "title": "Copilot: উত্তরের প্রতিটা সংখ্যা ডেটা থেকে",
+      "what": "প্রশ্ন → MCP → উত্তর; উত্তরের কোনো সংখ্যা tool output-এর বাইরে নয়",
+      "cases": [
+        {
+          "name": "মোট নির্গমন কত?",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "কোন মাসে সবচেয়ে বেশি?",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "মে মাসে কেন বাড়ল?",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "নভেম্বর ২০২৬-এর বিদ্যুৎ কীভাবে হিসাব হলো?",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "Ledger কি অক্ষত?",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "নভেম্বর ২০২৬-এ কত হয়েছে?",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "how much emission in 2026",
+          "pass": true,
+          "detail": "ok"
+        }
+      ],
+      "passed": 7,
+      "total": 7
+    }
+  ],
+  "summary": {
+    "passed": 91,
+    "total": 91
+  }
+}

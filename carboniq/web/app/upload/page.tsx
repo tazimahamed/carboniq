@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { ACTIVITY_LABEL, FACTORS } from "@/lib/factors";
 import { candidateNumbers, parseBill, type MeterCheck } from "@/lib/parseBill";
-import { ACCEPT, sha256Hex, toBillImage } from "@/lib/image";
+import { ACCEPT, ocrVariants, sha256Hex, toBillImage } from "@/lib/image";
 import Shell from "@/components/Shell";
 
 type Result = {
@@ -51,21 +51,30 @@ export default function Upload() {
     setStatus("ভাষার ফাইল প্রস্তুত হচ্ছে (প্রথমবার একটু সময় লাগে)...");
     try {
       const { createWorker } = await import("tesseract.js");
+      let pass = 0;
       const worker = await createWorker(["ben", "eng"], 1, {
         logger: (m: { status: string; progress: number }) => {
-          if (m.status === "recognizing text") { setStatus("বিল পড়া হচ্ছে..."); setProgress(Math.round(m.progress * 100)); }
+          if (m.status === "recognizing text") { setStatus(`বিল পড়া হচ্ছে (${pass + 1}/২)...`); setProgress(Math.round(((pass + m.progress) / 2) * 100)); }
         },
       });
-      const { data } = await worker.recognize(small);
+      // টেবিলওয়ালা বিলের জন্য: পুরো পাতাকে একটা লেখার block ধরে পড়া
+      await worker.setParameters({ tessedit_pageseg_mode: "6" as never });
+      // দুই রকম পরিষ্কার করা ছবি — একটায় যা ভুল পড়ে, অন্যটায় প্রায়ই ঠিক আসে
+      const variants = await ocrVariants(small);
+      const texts: string[] = []; let conf = 0;
+      for (const v of variants) {
+        const { data } = await worker.recognize(v);
+        texts.push(data.text); conf += data.confidence / variants.length; pass++;
+      }
       await worker.terminate();
-      setOcrText(data.text); setConfidence(Math.round(data.confidence));
-      const p = parseBill(data.text);
+      setOcrText(texts.join("\n\n───── দ্বিতীয় পাঠ ─────\n\n")); setConfidence(Math.round(conf));
+      const p = parseBill(texts);
       setMeter(p.meter);
       if (p.kwh !== null) { setQuantity(String(p.kwh)); setOcrQty(String(p.kwh)); setActivity("electricity"); }
-      else setCandidates(candidateNumbers(data.text));
+      else setCandidates(candidateNumbers(texts));
       if (p.month) setMonth(p.month);
       setStatus(p.kwh !== null
-        ? `সংখ্যা পাওয়া গেছে · OCR confidence ${Math.round(data.confidence)}%`
+        ? `সংখ্যা পাওয়া গেছে · OCR confidence ${Math.round(conf)}% — বিলের সাথে মিলিয়ে নিন`
         : "ব্যবহৃত ইউনিট নিশ্চিতভাবে পাওয়া যায়নি — নিচের সংখ্যা থেকে বাছুন বা নিজে লিখুন");
     } catch {
       setStatus("OCR চালানো যায়নি — সংখ্যা নিজে লিখে দিন");
@@ -108,7 +117,6 @@ export default function Upload() {
   const unit = FACTORS.find((f) => f.activity === activity)?.unit;
   const steps = ["ছবি", "পড়া", "নিশ্চিত", "সিল"];
   const stepIdx = { idle: 0, reading: 1, review: 2, saving: 3, done: 4 }[phase];
-  const meterMatches = meter && quantity ? Math.abs(meter.expected - Number(quantity)) <= Math.max(1, Number(quantity) * 0.005) : null;
 
   return (
     <Shell eyebrow="ধাপ ১" title="বিল upload" sub="ছবি আপনার device-এই পড়া হয় — মূল বিল প্রমাণ হিসেবে সংরক্ষিত ও hash-সিল হয়">
@@ -236,12 +244,19 @@ export default function Upload() {
                 </div>
               )}
 
-              {meter && (
-                <div className={`rounded-xl px-3 py-2 text-xs ${meterMatches ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}`}>
-                  <b>মিটার যাচাই:</b> ({meter.present.toLocaleString()} − {meter.previous.toLocaleString()}) × {meter.multiplier} = <b>{meter.expected.toLocaleString()}</b>
-                  {meterMatches ? " ✓ পরিমাণের সাথে মিলেছে" : " ⚠ পরিমাণের সাথে মেলেনি — আবার দেখুন"}
-                </div>
-              )}
+              {meter && (() => {
+                const f = (n: number) => n.toLocaleString("en-US");
+                const calc = `(${f(meter.present)} − ${f(meter.previous)}) × ${meter.multiplier} = ${f(meter.expected)}`;
+                const typedOk = !!quantity && Math.abs(meter.expected - Number(quantity)) <= Math.max(1, Number(quantity) * 0.005);
+                if (meter.ok && typedOk) return (
+                  <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-900"><b>✓ দুইভাবে মিলেছে:</b> বিলে ছাপা ইউনিট আর মিটার রিডিং {calc}</div>);
+                if (meter.printed != null && !close(meter.printed, meter.expected)) return (
+                  <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"><b>⚠ মেলেনি:</b> বিলে ছাপা {f(meter.printed)}, কিন্তু মিটার রিডিং থেকে {calc}। বিলটা ভালো করে দেখুন।</div>);
+                return (
+                  <div className={`rounded-xl px-3 py-2 text-xs ${typedOk ? "bg-sky-50 text-sky-900" : "bg-amber-50 text-amber-900"}`}>
+                    <b>মিটার রিডিং থেকে হিসাব:</b> {calc}{typedOk ? " — বিলের সাথে মিলিয়ে নিন" : " ⚠ লেখা পরিমাণের সাথে মেলেনি"}
+                  </div>);
+              })()}
 
               <label className="block text-sm font-medium">মাস
                 <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
@@ -270,6 +285,8 @@ export default function Upload() {
     </Shell>
   );
 }
+
+const close = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, b * 0.005);
 
 function Check({ ok, label }: { ok: boolean; label: string }) {
   return (

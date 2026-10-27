@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/report", label: "Report" },
   { href: "/copilot", label: "Copilot" },
   { href: "/developers", label: "API · MCP" },
+  { href: "/evaluation", label: "Evaluation" },
 ];
 
 export default function Nav() {
