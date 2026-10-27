@@ -76,7 +76,8 @@ export function toolsFor(intent: Intent): ToolCall[] {
 const t2 = (n: number) => toBn(n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const pct = (a: number, b: number) => (b ? ((a - b) / b) * 100 : 0);
 
-export type Answer = { text: string; sources: string[] };
+/** key = যে সংখ্যাগুলো AI-এর উত্তরে থাকতেই হবে; key না থাকলে AI দিয়ে নতুন করে বলানো হয় না */
+export type Answer = { text: string; sources: string[]; key?: string[] };
 
 /** tool-এর ফল থেকে বাংলা উত্তর। results[i] = toolsFor(intent)[i]-এর structuredContent (বা error লেখা) */
 export function compose(intent: Intent, results: any[]): Answer {
@@ -90,13 +91,14 @@ export function compose(intent: Intent, results: any[]): Answer {
       return {
         text: `${span}-এ মোট নির্গমন **${t2(r.total)} টন CO₂e**।\n• Scope 1 (গ্যাস, ডিজেল): ${t2(r.scope_1)} টন\n• Scope 2 (বিদ্যুৎ): ${t2(r.scope_2_location_based)} টন\n\n${toBn(r.records)}টা record, সবগুলো মানুষের নিশ্চিত করা ও hash-সিল করা; এর মধ্যে ${toBn(r.evidence.original_bill_attached_L2)}টায় মূল বিল সংযুক্ত। Ledger ${r.ledger_valid ? "অক্ষত ✓" : "⚠ গরমিল"}।`,
         sources: ["get_emissions"],
+        key: [t2(r.total)],
       };
     }
     case "peak": {
       const ms = (r.by_month ?? []) as { month: string; total: number }[];
       if (!ms.length) return { text: "তুলনা করার মতো ডেটা নেই।", sources: ["get_emissions"] };
       const hi = ms.reduce((a, b) => (b.total > a.total ? b : a)), lo = ms.reduce((a, b) => (b.total < a.total ? b : a));
-      return { text: `সবচেয়ে বেশি নির্গমন **${monthBn(hi.month)}-এ: ${t2(hi.total)} টন**।\nসবচেয়ে কম ${monthBn(lo.month)}-এ: ${t2(lo.total)} টন।\nপার্থক্য ${toBn(pct(hi.total, lo.total).toFixed(0))}%।`, sources: ["get_emissions"] };
+      return { text: `সবচেয়ে বেশি নির্গমন **${monthBn(hi.month)}-এ: ${t2(hi.total)} টন**।\nসবচেয়ে কম ${monthBn(lo.month)}-এ: ${t2(lo.total)} টন।\nপার্থক্য ${toBn(pct(hi.total, lo.total).toFixed(0))}%।`, sources: ["get_emissions"], key: [t2(hi.total)] };
     }
     case "change": {
       const ms = (r.by_month ?? []) as { month: string; total: number; scope_1: number; scope_2: number }[];
@@ -111,6 +113,7 @@ export function compose(intent: Intent, results: any[]): Answer {
       return {
         text: `${monthBn(prev.month)} থেকে ${monthBn(cur.month)}-এ মোট নির্গমন ${dir(d)} (${t2(prev.total)} → ${t2(cur.total)} টন)।\n• Scope 1: ${dir(d1)}\n• Scope 2: ${dir(d2)}\n\nবড় পরিবর্তন এসেছে ${main} থেকে। কারণ জানতে ওই মাসের উৎপাদন আর আবহাওয়ার সাথে মিলিয়ে দেখুন — গরমের মাসে বিদ্যুৎ বেশি লাগা স্বাভাবিক, কিন্তু উৎপাদন না বাড়লে যন্ত্রে সমস্যা থাকতে পারে।`,
         sources: ["get_emissions"],
+        key: [t2(prev.total), t2(cur.total)],
       };
     }
     case "explain": {
@@ -143,15 +146,29 @@ export function compose(intent: Intent, results: any[]): Answer {
   }
 }
 
-// ===== Guardrail: AI-এর উত্তরের প্রতিটা সংখ্যা tool output বা template-এ থাকতে হবে =====
+// ===== Guardrail =====
+const REFUSAL = /নেই|জানি না|পারছি না|দুঃখিত|don't know|not available|cannot/i;
+const norm = (s: string) => toEn(s).replace(/,/g, "");
 function numbersIn(s: string): number[] {
-  return (toEn(s).replace(/,/g, "").match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
+  return (norm(s).match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
 }
-export function verifyNumbers(aiText: string, allowedSources: string[]): { ok: boolean; bad: number[] } {
+
+/** AI-এর উত্তর তখনই গ্রহণ: (১) মূল সংখ্যাগুলো সব আছে, (২) ডেটার বাইরের কোনো সংখ্যা নেই, (৩) "তথ্য নেই" ধরনের অস্বীকার নেই */
+export function verifyAi(aiText: string, answer: Answer, toolResults: unknown[]): { ok: boolean; reason?: string } {
+  if (!aiText || aiText.length < 15) return { ok: false, reason: "empty" };
+  const key = answer.key ?? [];
+  const have = new Set(numbersIn(aiText).map((n) => n.toFixed(2)));
+  for (const k of key) if (!have.has(Number(norm(k)).toFixed(2))) return { ok: false, reason: `missing ${k}` };
+  if (REFUSAL.test(aiText)) return { ok: false, reason: "refusal" };
   const allowed = new Set<string>();
-  for (const src of allowedSources) for (const n of numbersIn(src)) {
-    allowed.add(String(n)); allowed.add(n.toFixed(1)); allowed.add(n.toFixed(2)); allowed.add(String(Math.round(n)));
+  for (const src of [answer.text, JSON.stringify(toolResults)]) for (const n of numbersIn(src)) {
+    allowed.add(n.toFixed(2)); allowed.add(n.toFixed(1)); allowed.add(String(Math.round(n)));
   }
-  const bad = numbersIn(aiText).filter((n) => n > 12 && !(n >= 2020 && n <= 2030) && !allowed.has(String(n)) && !allowed.has(n.toFixed(2)) && !allowed.has(n.toFixed(1)));
-  return { ok: bad.length === 0, bad };
+  const bad = numbersIn(aiText).filter((n) => n > 12 && !(n >= 2020 && n <= 2030) && !allowed.has(n.toFixed(2)) && !allowed.has(n.toFixed(1)) && !allowed.has(String(n)));
+  return bad.length ? { ok: false, reason: `unknown ${bad.join(",")}` } : { ok: true };
+}
+
+/** AI-কে দেওয়ার জন্য সংক্ষিপ্ত তথ্য (markdown ছাড়া) */
+export function factsFor(answer: Answer) {
+  return answer.text.replace(/\*\*/g, "").replace(/^•\s*/gm, "- ").trim();
 }

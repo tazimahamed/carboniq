@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Shell from "@/components/Shell";
-import { compose, route, toolsFor, verifyNumbers, type ToolCall } from "@/lib/copilot";
+import { compose, factsFor, route, toolsFor, verifyAi, type ToolCall } from "@/lib/copilot";
 import { loadModel, MODEL_ID, rephrase, webgpuAvailable } from "@/lib/llm";
 
 type Msg = {
@@ -9,7 +9,7 @@ type Msg = {
   text: string;
   calls?: ToolCall[];
   sources?: string[];
-  mode?: "template" | "ai" | "ai-rejected";
+  mode?: "template" | "ai";
   template?: string;
 };
 
@@ -41,7 +41,7 @@ function Rich({ text }: { text: string }) {
 export default function Copilot() {
   const [msgs, setMsgs] = useState<Msg[]>([{
     role: "bot", mode: "template",
-    text: "আসসালামু আলাইকুম! আমি CarbonIQ Copilot। এই factory-র কার্বন হিসাব নিয়ে বাংলা বা English-এ প্রশ্ন করুন। প্রতিটা উত্তর আসল MCP tool থেকে, উৎসসহ।",
+    text: "আসসালামু আলাইকুম! আমি CarbonIQ Copilot। আপনার factory-র নির্গমন, মাসভিত্তিক পরিবর্তন বা কোনো হিসাবের প্রমাণ নিয়ে প্রশ্ন করুন।",
   }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -50,7 +50,7 @@ export default function Copilot() {
   const [showTemplate, setShowTemplate] = useState<number | null>(null);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (!webgpuAvailable()) setAi("unsupported"); }, []);
+  useEffect(() => { if (!webgpuAvailable()) setAi("unsupported"); }, []); // সমর্থন না থাকলে বোতামই দেখায় না
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [msgs, busy]);
 
   async function enableAi() {
@@ -74,13 +74,13 @@ export default function Copilot() {
       const answer = compose(intent, results);
       let msg: Msg = { role: "bot", text: answer.text, calls, sources: answer.sources, mode: "template", template: answer.text };
 
-      if (ai === "on" && calls.length && typeof results[0] === "object") {
+      // AI শুধু তখন, যখন উত্তরে যাচাই করার মতো মূল সংখ্যা আছে। যাচাই ব্যর্থ হলে চুপচাপ নির্ভরযোগ্য উত্তরই দেখায়।
+      if (ai === "on" && answer.key?.length && typeof results[0] === "object") {
         try {
-          const out = await rephrase(q, answer.text);
-          const check = verifyNumbers(out, [answer.text, JSON.stringify(results)]);
-          msg = check.ok && out
-            ? { ...msg, text: out, mode: "ai" }
-            : { ...msg, mode: "ai-rejected" };
+          const out = await rephrase(q, factsFor(answer));
+          const check = verifyAi(out, answer, results);
+          if (check.ok) msg = { ...msg, text: out, mode: "ai" };
+          else console.debug("[copilot] AI উত্তর বাতিল:", check.reason, out);
         } catch { /* AI ব্যর্থ হলে template-ই থাকে */ }
       }
       setMsgs((m) => [...m, msg]);
@@ -91,17 +91,16 @@ export default function Copilot() {
   }
 
   return (
-    <Shell eyebrow="AI Copilot · MCP" title="Carbon Copilot" sub="প্রশ্ন → MCP tool → আসল ledger থেকে উত্তর। কোনো সংখ্যা বানানো হয় না।"
+    <Shell eyebrow="AI Copilot · MCP" title="Carbon Copilot" sub="বাংলা বা English-এ প্রশ্ন করুন — প্রতিটা উত্তর যাচাইযোগ্য ledger থেকে"
       right={
-        <div className="text-right">
-          {ai === "off" && <button onClick={enableAi} className="rounded-full bg-[var(--ink)] px-4 py-2 text-sm font-medium text-white transition hover:scale-105">✦ On-device AI চালু করুন</button>}
-          {ai === "loading" && <div className="w-64"><p className="truncate text-xs text-gray-500">{aiProgress.text || "Model নামানো হচ্ছে..."}</p>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-200"><div className="h-full bg-[var(--leaf)] transition-all" style={{ width: `${Math.max(3, aiProgress.pct)}%` }} /></div></div>}
-          {ai === "on" && <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-900">✦ On-device AI চালু · Qwen2.5-1.5B</span>}
-          {ai === "unsupported" && <span className="text-xs text-gray-500">এই browser-এ WebGPU নেই — নিয়মভিত্তিক উত্তর চলবে</span>}
-          {ai === "failed" && <span className="text-xs text-amber-700">AI model লোড হয়নি — নিয়মভিত্তিক উত্তর চলবে</span>}
+        <div className="text-right" title={`${MODEL_ID} · Apache 2.0 · আপনার browser-এ চলে, কোনো AI API নেই`}>
+          {ai === "off" && <button onClick={enableAi} className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium transition hover:border-[var(--leaf)] hover:shadow-sm">✦ AI উত্তর চালু করুন</button>}
+          {ai === "loading" && <div className="w-56"><p className="text-xs text-gray-500">AI প্রস্তুত হচ্ছে · {aiProgress.pct}%</p>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-gray-200"><div className="h-full bg-[var(--leaf)] transition-all" style={{ width: `${Math.max(3, aiProgress.pct)}%` }} /></div></div>}
+          {ai === "failed" && <button onClick={enableAi} className="text-xs text-gray-500 hover:underline">AI চালু হয়নি · আবার চেষ্টা করুন</button>}
+          {ai === "on" && <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-900"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />AI চালু</span>}
         </div>
-      }>
+            }>
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <div className="flex h-[640px] flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
@@ -112,19 +111,23 @@ export default function Copilot() {
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--lime)] text-sm font-bold text-[var(--ink)]">C</span>
                 <div className="max-w-[85%]">
                   <div className="rounded-2xl rounded-tl-sm bg-gray-50 px-4 py-3 text-sm leading-relaxed"><Rich text={m.text} /></div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-                    {m.calls?.map((c, k) => (
-                      <span key={k} className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-emerald-900" title={JSON.stringify(c.arguments)}>
-                        MCP · {c.name}
+                  {m.calls && m.calls.length > 0 && (
+                    <div className="mt-1.5 flex items-center gap-2 pl-1 text-[11px] text-gray-400">
+                      <span title={m.calls.map((c) => `${c.name} ${JSON.stringify(c.arguments)}`).join("\n")}>
+                        উৎস: hash-সিল করা ledger
                       </span>
-                    ))}
-                    {m.mode === "ai" && <span className="rounded-full bg-[var(--ink)] px-2 py-0.5 text-[var(--lime)]">✦ AI · সংখ্যা যাচাইকৃত ✓</span>}
-                    {m.mode === "ai-rejected" && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900" title="AI-এর উত্তরে এমন সংখ্যা ছিল যা ডেটায় নেই">⚠ AI-এর উত্তর বাতিল (সংখ্যা মেলেনি) — নির্ভরযোগ্য উত্তর দেখানো হলো</span>}
-                    {m.mode === "ai" && m.template && (
-                      <button onClick={() => setShowTemplate(showTemplate === i ? null : i)} className="text-gray-500 underline">মূল ডেটা</button>
-                    )}
-                  </div>
-                  {showTemplate === i && m.template && <div className="mt-2 rounded-xl border border-dashed p-3 text-xs text-gray-600"><Rich text={m.template} /></div>}
+                      {m.mode === "ai" && (
+                        <>
+                          <span>·</span>
+                          <span title="On-device AI দিয়ে লেখা; প্রতিটা সংখ্যা ledger-এর সাথে মিলিয়ে দেখা হয়েছে">✦ AI</span>
+                          <button onClick={() => setShowTemplate(showTemplate === i ? null : i)} className="hover:text-gray-600 hover:underline">
+                            {showTemplate === i ? "লুকান" : "বিস্তারিত"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {showTemplate === i && m.template && <div className="mt-2 rounded-xl border border-black/5 bg-white p-3 text-xs text-gray-600"><Rich text={m.template} /></div>}
                 </div>
               </div>
             ))}
@@ -154,14 +157,6 @@ export default function Copilot() {
                   className="rounded-xl border border-black/10 px-3 py-2 text-left text-sm transition hover:border-[var(--leaf)] hover:bg-emerald-50 disabled:opacity-40">{s}</button>
               ))}
             </div>
-          </div>
-          <div className="rounded-2xl bg-[var(--ink)] p-4 text-xs leading-relaxed text-white/75">
-            <p className="mb-2 text-sm font-semibold text-white">কীভাবে কাজ করে</p>
-            <p>১. প্রশ্ন বুঝে ঠিক MCP tool বাছে</p>
-            <p>২. আসল ledger থেকে ডেটা আনে</p>
-            <p>৩. নিয়ম অনুযায়ী উত্তর তৈরি</p>
-            <p>৪. AI চালু থাকলে স্বাভাবিক বাংলায় বলে — কিন্তু তার উত্তরের প্রতিটা সংখ্যা ডেটার সাথে মেলানো হয়; না মিললে বাতিল</p>
-            <p className="mt-2 text-white/50">Model: {MODEL_ID} (Apache 2.0) · আপনার browser-এ চলে · কোনো AI API নেই</p>
           </div>
         </aside>
       </div>
