@@ -8,11 +8,12 @@ export function bnToEn(s: string) {
 
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
 const SAME_LINE = String.raw`[^\d\n]{0,25}`;
-const DATE = String.raw`\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\S*`;
+// "06/06/2021" — OCR "/"-কে অঙ্ক পড়লে "10670672021" (৮-১১ অঙ্কের একটানা সংখ্যা) হয়ে যায়, সেটাও তারিখ ধরি
+const DATE = String.raw`(?:\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\S*|\d{8,11})`;
 
 // ক্রম জরুরি: সবচেয়ে নির্ভরযোগ্য ধরন আগে। [ \t]* মানে একই লাইনে — পরের লাইনের লেখা ধরবে না।
 const KWH_PATTERNS = [
-  new RegExp(String.raw`(?:kwh\s*consum\w*|units?\s*consum\w*|consum\w*\s*units?|ব্যবহৃত\s*ইউনিট|মোট\s*ইউনিট)` + SAME_LINE + NUM, "i"),
+  new RegExp(String.raw`(?:kwh\s*consum\w*|units?\s*consum\w*|consum\w*\s*units?|ব্যবহৃত\s*ইউনিট|মোট\s*ইউনিট|difference|পার্থক্য)` + SAME_LINE + NUM, "i"),
   new RegExp(NUM + String.raw`[ \t]*kwh(?![ \t]*(?:charge|rate))`, "i"),
   new RegExp(String.raw`(?:kwh|ইউনিট)(?![^\n]{0,8}(?:charge|rate|চার্জ|tk|taka|টাকা))` + SAME_LINE + NUM, "i"),
   new RegExp(NUM + String.raw`[ \t]*(?:units?|ইউনিট)`, "i"),
@@ -37,6 +38,16 @@ function reading(raw: string): number {
 function meterValue(text: string, labels: string): number | null {
   const withDate = text.match(new RegExp(String.raw`(?:${labels})[^\d\n]{0,12}${DATE}[^\d\n]{1,4}(\d+(?:\.\d+)?)(?=[ \t]|$)`, "im"));
   if (withDate) return reading(withDate[1]);
+  // label-এর লাইনে label-এর পরের প্রথম ৩-৭ অঙ্কের সংখ্যা (তারিখের মতো লম্বা সংখ্যা আর টাকা বাদ)
+  const line = text.match(new RegExp(String.raw`(?:${labels})([^\n]*)`, "im"));
+  if (line) {
+    for (const tok of line[1].match(/\d+(?:\.\d+)?/g) ?? []) {
+      if (/\.\d{2}$/.test(tok)) break;                  // টাকার কলামে পৌঁছে গেছি
+      const digits = tok.replace(".", "").length;
+      if (digits >= 8) continue;                          // তারিখ
+      if (digits >= 3 && digits <= 7) return reading(tok);
+    }
+  }
   const plain = text.match(new RegExp(String.raw`(?:${labels})\s*(?:read\w*|রিডিং|পাঠ)[^\d\n]{0,12}(\d+(?:\.\d+)?)`, "i"));
   return plain ? reading(plain[1]) : null;
 }
@@ -106,6 +117,15 @@ function parseOne(raw: string): Raw {
   };
 }
 
+// OCR সাধারণত যে অঙ্কগুলো গুলিয়ে ফেলে (বিশেষ করে dot-matrix ছাপায়)
+const CONFUSE: Record<string, string[]> = { "6": ["4", "5", "8"], "4": ["6"], "5": ["6", "3"], "3": ["8", "5"], "8": ["3", "6", "0"], "0": ["8"], "1": ["7"], "7": ["1"] };
+/** একটা অঙ্ক বদলে সম্ভাব্য আসল রিডিং */
+function oneDigitFixes(n: number): number[] {
+  const s = String(n), out: number[] = [];
+  for (let i = 0; i < s.length; i++) for (const r of CONFUSE[s[i]] ?? []) if (!(i === 0 && r === "0")) out.push(Number(s.slice(0, i) + r + s.slice(i + 1)));
+  return out;
+}
+
 const close = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, b * 0.005);
 
 /**
@@ -129,6 +149,11 @@ export function parseBill(input: string | string[]) {
     }
   };
   addPairs(presents, previouses);
+  // বর্তমান/পূর্ববর্তী দুটোই পড়া গেছে কিন্তু মিলছে না → একটায় এক অঙ্ক ভুল পড়া হয়েছে ধরে চেষ্টা
+  if (!pairs.length && presents.length && previouses.length) {
+    addPairs(presents.flatMap(oneDigitFixes), previouses);
+    addPairs(presents, previouses.flatMap(oneDigitFixes));
+  }
   // "Current/Previous" শব্দ পড়া না গেলে: সব পাঠের তারিখ-পরের সংখ্যা একসাথে নিয়ে জোড়া (একই বিল)
   if (!pairs.length) { const pool = Array.from(new Set(reads.flatMap((r) => [...r.dated, ...(r.present ? [r.present] : []), ...(r.previous ? [r.previous] : [])]))); addPairs(pool, pool); }
   pairs.sort((a, b) => a.expected - b.expected);

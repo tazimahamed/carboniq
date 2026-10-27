@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T22:17:41.529Z",
+  "generated_at": "2026-10-27T22:24:30.050Z",
   "node": "v22.23.4",
   "suites": [
     {
@@ -207,13 +207,23 @@
           "detail": "kwh=58"
         },
         {
+          "name": "browser-এর আসল লাইন: তারিখের \"/\" অঙ্ক হয়ে গেছে (10670672021) → তবু ৫৮",
+          "pass": true,
+          "detail": "kwh=58"
+        },
+        {
+          "name": "এক পাঠে ৬→৪, অন্য পাঠে ঠিক → এক অঙ্ক ভুল ধরে ৫৮",
+          "pass": true,
+          "detail": "kwh=58"
+        },
+        {
           "name": "\"KWH Charge 243.02\" (টাকা) ইউনিট হিসেবে নেয় না",
           "pass": true,
           "detail": "kwh=58"
         }
       ],
-      "passed": 7,
-      "total": 7
+      "passed": 9,
+      "total": 9
     },
     {
       "id": "mcp",
@@ -529,7 +539,7 @@
     }
   ],
   "summary": {
-    "passed": 93,
-    "total": 93
+    "passed": 95,
+    "total": 95
   }
 }
