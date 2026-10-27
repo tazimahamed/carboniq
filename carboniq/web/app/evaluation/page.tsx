@@ -24,7 +24,7 @@ export default function Evaluation() {
   return (
     <Shell eyebrow="Evaluation" title="মাপা ফলাফল" sub="আসল code-এর উপর স্বয়ংক্রিয় পরীক্ষা — যা মাপা হয়নি তাও নিচে লেখা আছে">
       <div className="grid gap-4 md:grid-cols-[1.2fr_2fr]">
-        <div className="rounded-2xl bg-[var(--ink)] p-6 text-white">
+        <div className="rounded-lg bg-[var(--ink)] p-6 text-white">
           <p className="text-sm text-white/60">মোট পরীক্ষা পাস</p>
           <p className="mt-1 text-5xl font-bold text-[var(--lime)]">{summary.passed}<span className="text-2xl text-white/50">/{summary.total}</span></p>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[var(--lime)]" style={{ width: `${pct}%` }} /></div>
@@ -34,7 +34,7 @@ export default function Evaluation() {
         <div className="grid gap-3 sm:grid-cols-2">
           {suites.map((s) => (
             <button key={s.id} onClick={() => setOpen(open === s.id ? null : s.id)}
-              className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:shadow-md ${open === s.id ? "border-[var(--leaf)]" : "border-black/5"}`}>
+              className={`rounded-lg border bg-white p-4 text-left shadow-sm transition hover:shadow-md ${open === s.id ? "border-[var(--leaf)]" : "border-[var(--line)]"}`}>
               <div className="flex items-center gap-2">
                 <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] text-white ${s.passed === s.total ? "bg-[var(--leaf)]" : "bg-amber-500"}`}>{s.passed === s.total ? "✓" : "!"}</span>
                 <p className="text-sm font-semibold">{s.title}</p>
@@ -49,7 +49,7 @@ export default function Evaluation() {
       {open && (() => {
         const s = suites.find((x) => x.id === open)!;
         return (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
+          <div className="mt-4 overflow-hidden rounded-lg border border-[var(--line)] bg-white shadow-sm">
             <div className="flex items-center border-b px-5 py-3"><p className="font-semibold">{s.title}</p>
               <button onClick={() => setOpen(null)} className="ml-auto text-sm text-gray-400 hover:text-gray-700">বন্ধ ✕</button></div>
             <table className="w-full text-sm">
@@ -71,7 +71,7 @@ export default function Evaluation() {
         <h2 className="text-lg font-semibold">যা এখনো মাপা হয়নি বা সীমাবদ্ধতা</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {LIMITS.map((l) => (
-            <div key={l.t} className="rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4">
+            <div key={l.t} className="rounded-lg border border-amber-200/70 bg-amber-50/60 p-4">
               <p className="text-sm font-semibold text-amber-900">{l.t}</p>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/80">{l.d}</p>
             </div>
