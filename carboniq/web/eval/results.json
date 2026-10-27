@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T22:06:09.379Z",
+  "generated_at": "2026-10-27T22:17:41.529Z",
   "node": "v22.23.4",
   "suites": [
     {
@@ -197,13 +197,23 @@
           "detail": "{\"previous\":6519,\"present\":6577,\"multiplier\":1,\"expected\":58,\"ok\":false,\"printed\":null}"
         },
         {
+          "name": "\"Current/Previous\" শব্দ OCR-এ গুলিয়ে গেলেও → ৫৮ (তারিখ-পরের রিডিং থেকে)",
+          "pass": true,
+          "detail": "kwh=58"
+        },
+        {
+          "name": "browser-এর আসল ভুল: দুই রিডিংয়েই ৬→৪, label নেই → তবু ৫৮",
+          "pass": true,
+          "detail": "kwh=58"
+        },
+        {
           "name": "\"KWH Charge 243.02\" (টাকা) ইউনিট হিসেবে নেয় না",
           "pass": true,
           "detail": "kwh=58"
         }
       ],
-      "passed": 5,
-      "total": 5
+      "passed": 7,
+      "total": 7
     },
     {
       "id": "mcp",
@@ -519,7 +529,7 @@
     }
   ],
   "summary": {
-    "passed": 91,
-    "total": 91
+    "passed": 93,
+    "total": 93
   }
 }

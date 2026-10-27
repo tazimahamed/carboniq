@@ -90,6 +90,11 @@ const suite = (id: string, title: string, what: string) => { const s = { id, tit
   s.cases.push({ name: "দুই রকম মিলিয়ে → ৫৮ kWh", pass: both.kwh === 58, detail: `kwh=${both.kwh}` });
   s.cases.push({ name: "মাস → জুন ২০২১ (OCR বছর ভুল পড়লেও)", pass: both.month === "2021-06", detail: `month=${both.month}` });
   s.cases.push({ name: "মিটার: ৬,৫৭৭ − ৬,৫১৯ (৬→৪ ভুল পড়াটা বাদ দিয়ে)", pass: both.meter?.present === 6577 && both.meter?.previous === 6519, detail: JSON.stringify(both.meter) });
+  const garble = (t: string) => t.replace(/Current|Curent/g, "কিউরেন্ট").replace(/Previous/g, "প্রিভি");
+  const nl = parseBill([garble(g), garble(b)]);
+  s.cases.push({ name: "\"Current/Previous\" শব্দ OCR-এ গুলিয়ে গেলেও → ৫৮ (তারিখ-পরের রিডিং থেকে)", pass: nl.kwh === 58, detail: `kwh=${nl.kwh}` });
+  const br = parseBill("কি: 06/06/2021 4,577 0 Demand Charge : 60. 00\nপ্র: 06/05/2021 4,519 0 Sub-Total : 303. 02\nIssue Date: 15/06/2021 Due Date : 14/07/2021");
+  s.cases.push({ name: "browser-এর আসল ভুল: দুই রিডিংয়েই ৬→৪, label নেই → তবু ৫৮", pass: br.kwh === 58, detail: `kwh=${br.kwh}` });
   s.cases.push({ name: "\"KWH Charge 243.02\" (টাকা) ইউনিট হিসেবে নেয় না", pass: both.kwh !== 243, detail: `kwh=${both.kwh}` });
 }
 

@@ -41,6 +41,17 @@ function meterValue(text: string, labels: string): number | null {
   return plain ? reading(plain[1]) : null;
 }
 
+/** "06/06/2021  6,577" — তারিখের ঠিক পরে রিডিং (label OCR-এ গুলিয়ে গেলেও কাজ করে) */
+function dateReadings(text: string): number[] {
+  const out: number[] = [];
+  const re = new RegExp(String.raw`${DATE}[^\d\n]{1,4}(\d+(?:\.\d+)?)(?=[ \t]|$)`, "gm");
+  for (const m of text.matchAll(re)) {
+    const n = reading(m[1]);
+    if (n >= 100 && !(n >= 1900 && n <= 2100) && !/\.\d{2}$/.test(m[1])) out.push(n); // টাকার অঙ্ক (x.xx) আর বছর বাদ
+  }
+  return out;
+}
+
 /** সবচেয়ে বেশিবার আসা বছর (OCR "2021"-কে "202%" পড়লেও অন্য তারিখ থেকে পাওয়া যায়) */
 function commonYear(text: string): string | null {
   const ys = text.match(/20[12]\d/g) ?? [];
@@ -73,7 +84,7 @@ export type MeterCheck = { previous: number; present: number; multiplier: number
 const PRESENT = String.raw`present|current|বর্তমান`;
 const PREVIOUS = String.raw`previous|prev|পূর্ববর্তী`;
 
-type Raw = { kwh: number | null; month: string | null; present: number | null; previous: number | null; multiplier: number | null };
+type Raw = { kwh: number | null; month: string | null; present: number | null; previous: number | null; multiplier: number | null; dated: number[] };
 
 function parseOne(raw: string): Raw {
   const text = bnToEn(raw).replace(/(\d),(\d)/g, "$1$2");
@@ -91,6 +102,7 @@ function parseOne(raw: string): Raw {
     present: meterValue(text, PRESENT),
     previous: meterValue(text, PREVIOUS),
     multiplier: find(text, String.raw`multiplying\s*factor|\bm\.?\s*f\.?\b|গুণক`),
+    dated: dateReadings(text),
   };
 }
 
@@ -111,9 +123,14 @@ export function parseBill(input: string | string[]) {
   // সম্ভাব্য সব (বর্তমান, পূর্ববর্তী) জোড়া — বর্তমান বড় হতে হবে আর পার্থক্য যুক্তিসঙ্গত
   const pairs: { present: number; previous: number; expected: number }[] = [];
   // এক মাসের ব্যবহার মোট রিডিংয়ের একটা ছোট অংশ — OCR একটা অঙ্ক ভুল পড়লে (৬→৪) পার্থক্য অস্বাভাবিক বড় হয়
-  for (const pr of presents) for (const pv of previouses) {
-    if (pr > pv && pv >= pr * 0.4) pairs.push({ present: pr, previous: pv, expected: Math.round((pr - pv) * multiplier * 100) / 100 });
-  }
+  const addPairs = (prs: number[], pvs: number[]) => {
+    for (const pr of prs) for (const pv of pvs) {
+      if (pr > pv && pv >= pr * 0.4) pairs.push({ present: pr, previous: pv, expected: Math.round((pr - pv) * multiplier * 100) / 100 });
+    }
+  };
+  addPairs(presents, previouses);
+  // "Current/Previous" শব্দ পড়া না গেলে: সব পাঠের তারিখ-পরের সংখ্যা একসাথে নিয়ে জোড়া (একই বিল)
+  if (!pairs.length) { const pool = Array.from(new Set(reads.flatMap((r) => [...r.dated, ...(r.present ? [r.present] : []), ...(r.previous ? [r.previous] : [])]))); addPairs(pool, pool); }
   pairs.sort((a, b) => a.expected - b.expected);
   const agreeing = pairs.find((p) => kwhs.some((k) => close(p.expected, k)));
   const pair = agreeing ?? pairs[0] ?? null;
