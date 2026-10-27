@@ -53,17 +53,17 @@ export default function Developers() {
           ["Endpoint", "/api/mcp", "POST · stateless · CORS খোলা"],
           ["নিরাপত্তা", "Read-only", "লেখার কোনো tool নেই · token ঐচ্ছিক"],
         ].map(([k, v, s]) => (
-          <div key={k} className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
-            <p className="text-[13px] text-[var(--muted)]">{k}</p>
-            <p className="mt-1 text-lg font-semibold">{v}</p>
+          <div key={k} className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+            <p className="text-xs uppercase tracking-wide text-gray-400">{k}</p>
+            <p className="mt-1 font-mono text-lg font-semibold">{v}</p>
             <p className="mt-1 text-xs text-gray-500">{s}</p>
           </div>
         ))}
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1.2fr]">
-        <div className="min-w-0 space-y-4">
-          <div className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.3fr]">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
             <h2 className="font-semibold">Tool ({tools.length || 4}টা)</h2>
             <ul className="mt-3 space-y-3">
               {tools.map((t) => (
@@ -76,23 +76,23 @@ export default function Developers() {
             </ul>
           </div>
 
-          <div className="rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
             <div className="flex items-center"><h2 className="font-semibold">Claude Desktop বা অন্য MCP client-এ যুক্ত করুন</h2>
               <button onClick={() => copy(config, "cfg")} className="ml-auto rounded-full border px-3 py-1 text-xs hover:bg-black/5">{copied === "cfg" ? "✓ Copied" : "Copy"}</button></div>
-            <pre className="mt-3 overflow-x-auto rounded-lg bg-[var(--ink)] p-4 text-xs text-white/85">{config}</pre>
+            <pre className="mt-3 overflow-x-auto rounded-xl bg-[var(--ink)] p-4 text-xs text-[var(--lime)]">{config}</pre>
             <div className="mt-4 flex items-center"><h3 className="text-sm font-semibold">অথবা সরাসরি HTTP</h3>
               <button onClick={() => copy(curl, "curl")} className="ml-auto rounded-full border px-3 py-1 text-xs hover:bg-black/5">{copied === "curl" ? "✓ Copied" : "Copy"}</button></div>
             <pre className="mt-2 overflow-x-auto rounded-xl bg-gray-50 p-4 text-xs text-gray-700">{curl}</pre>
           </div>
         </div>
 
-        <div className="min-w-0 rounded-lg border border-[var(--line)] bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
           <h2 className="font-semibold">চালিয়ে দেখুন (live)</h2>
           <p className="text-xs text-gray-500">আসল MCP endpoint-এ request যায়, আসল ledger থেকে উত্তর আসে</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {SAMPLES.map((s, i) => (
               <button key={i} onClick={() => run(i)}
-                className={`rounded-md border px-3 py-1.5 text-xs transition ${active === i && req ? "border-[var(--leaf)] bg-emerald-50" : "border-[var(--line)] hover:border-[var(--leaf)]"}`}>
+                className={`rounded-full border px-3 py-1.5 text-xs transition ${active === i && req ? "border-[var(--leaf)] bg-emerald-50" : "border-black/10 hover:border-[var(--leaf)]"}`}>
                 {s.label}
               </button>
             ))}
@@ -109,7 +109,7 @@ export default function Developers() {
               </div>
             </div>
           ) : (
-            <div className="mt-6 rounded-xl border-2 border-dashed border-[var(--line)] p-10 text-center text-sm text-gray-400">উপরের যেকোনো একটা বোতাম চাপুন</div>
+            <div className="mt-6 rounded-xl border-2 border-dashed border-black/10 p-10 text-center text-sm text-gray-400">উপরের যেকোনো একটা বোতাম চাপুন</div>
           )}
         </div>
       </div>

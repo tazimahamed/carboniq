@@ -15,8 +15,8 @@ export default function Report() {
 
   return (
     <Shell eyebrow="GHG Inventory" title="Report" sub={"Print window-এ \"Save as PDF\" নির্বাচন করুন"}
-      right={<button onClick={() => window.print()} className="rounded-md bg-[var(--forest)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--ink)]">PDF হিসেবে save করুন</button>}>
-    <article className="space-y-6 rounded-lg border border-[var(--line)] bg-white p-8 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+      right={<button onClick={() => window.print()} className="rounded-full bg-[var(--forest)] px-5 py-2.5 text-sm font-medium text-white transition hover:scale-105 hover:shadow-lg">PDF হিসেবে save ↓</button>}>
+    <article className="space-y-6 rounded-2xl border border-black/5 bg-white p-8 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
 
       <header className="border-b pb-4">
         <p className="text-xs uppercase tracking-wide text-emerald-700">CarbonIQ BD · GHG Inventory Summary · DEMO (synthetic data)</p>
