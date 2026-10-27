@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { ACTIVITY_LABEL, FACTORS } from "@/lib/factors";
 import { candidateNumbers, parseBill, type MeterCheck } from "@/lib/parseBill";
-import { compressImage, sha256Hex } from "@/lib/image";
+import { ACCEPT, sha256Hex, toBillImage } from "@/lib/image";
 import Shell from "@/components/Shell";
 
 type Result = {
@@ -35,11 +35,17 @@ export default function Upload() {
   const input = useRef<HTMLInputElement>(null);
 
   async function runOcr(raw: File) {
-    if (!raw.type.startsWith("image/")) { setError("শুধু ছবি (JPG/PNG) দিন"); return; }
     setResult(null); setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null);
     setPhase("reading"); setProgress(0);
-    setStatus("ছবি প্রস্তুত হচ্ছে...");
-    const small = await compressImage(raw);
+    setStatus("ফাইল প্রস্তুত হচ্ছে...");
+    let small: Blob;
+    try {
+      const out = await toBillImage(raw);
+      small = out.blob;
+      if (out.kind === "PDF" || out.kind === "HEIC") setStatus(`${out.kind} থেকে ছবি তৈরি হয়েছে...`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ফাইল খোলা যায়নি"); setPhase("idle"); setStatus(""); return;
+    }
     setFile(small); setFileHash(await sha256Hex(small));
     setPreview(URL.createObjectURL(small));
     setStatus("ভাষার ফাইল প্রস্তুত হচ্ছে (প্রথমবার একটু সময় লাগে)...");
@@ -127,7 +133,7 @@ export default function Upload() {
           onClick={() => !preview && input.current?.click()}
           className={`relative flex min-h-[380px] items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition ${
             drag ? "scale-[1.01] border-[var(--leaf)] bg-emerald-50" : preview ? "border-transparent bg-[var(--ink)]" : "cursor-pointer border-black/15 bg-white hover:border-[var(--leaf)] hover:bg-emerald-50/40"}`}>
-          <input ref={input} type="file" accept="image/*" capture="environment" className="hidden"
+          <input ref={input} type="file" accept={ACCEPT} className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) runOcr(f); }} />
           {preview ? (
             <>
@@ -144,9 +150,10 @@ export default function Upload() {
           ) : (
             <div className="p-8 text-center">
               <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[var(--lime)]/30 text-3xl">⇪</div>
-              <p className="mt-4 text-lg font-semibold">বিলের ছবি এখানে টেনে আনুন</p>
-              <p className="mt-1 text-sm text-gray-500">অথবা click করে বাছুন · phone-এ সরাসরি camera খুলবে</p>
-              <p className="mt-4 text-xs text-gray-400">পরামর্শ: সোজা করে, ভালো আলোয় তুলুন</p>
+              <p className="mt-4 text-lg font-semibold">বিলের ছবি বা PDF এখানে টেনে আনুন</p>
+              <p className="mt-1 text-sm text-gray-500">অথবা click করে বাছুন · phone-এ camera বা gallery</p>
+              {error && phase === "idle" && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+              <p className="mt-4 text-xs text-gray-400">JPG · PNG · WebP · HEIC (iPhone) · PDF (e-bill) — সোজা করে, ভালো আলোয় তুলুন</p>
             </div>
           )}
         </div>
