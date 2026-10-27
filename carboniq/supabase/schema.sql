@@ -87,3 +87,8 @@ alter table documents        enable row level security;
 alter table activity_records enable row level security;
 alter table emission_results enable row level security;
 alter table ledger_entries   enable row level security;
+
+-- ===== বিলের ছবি রাখার জায়গা (Storage) =====
+-- private bucket: শুধু server (service role) পড়তে/লিখতে পারে, বাইরের কেউ সরাসরি না
+insert into storage.buckets (id, name, public) values ('bills', 'bills', false)
+on conflict (id) do nothing;

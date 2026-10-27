@@ -2,17 +2,29 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { ACTIVITY_LABEL, FACTORS } from "@/lib/factors";
-import { parseBill } from "@/lib/parseBill";
+import { candidateNumbers, parseBill, type MeterCheck } from "@/lib/parseBill";
+import { compressImage, sha256Hex } from "@/lib/image";
 import Shell from "@/components/Shell";
 
-type Result = { tonnes_co2e: number; formula: string; ledger_hash: string; scope: number; factor_source: string };
+type Result = {
+  tonnes_co2e: number; kg_co2e: number; formula: string; ledger_hash: string; scope: number; factor_source: string;
+  evidence_level: string; evidence: { file_hash: string; meter_check?: MeterCheck | null } | null;
+};
+
+const fmt = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 export default function Upload() {
+  const [file, setFile] = useState<Blob | null>(null);
+  const [fileHash, setFileHash] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "reading" | "review" | "saving" | "done">("idle");
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
   const [ocrText, setOcrText] = useState("");
+  const [confidence, setConfidence] = useState<number | null>(null);
+  const [meter, setMeter] = useState<MeterCheck | null>(null);
+  const [ocrQty, setOcrQty] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<number[]>([]);
   const [activity, setActivity] = useState("electricity");
   const [quantity, setQuantity] = useState("");
   const [month, setMonth] = useState("");
@@ -22,11 +34,14 @@ export default function Upload() {
   const [drag, setDrag] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
-  async function runOcr(file: File) {
-    if (!file.type.startsWith("image/")) { setError("শুধু ছবি (JPG/PNG) দিন"); return; }
-    setPreview(URL.createObjectURL(file));
-    setResult(null); setError(""); setConfirmed(false); setOcrText("");
+  async function runOcr(raw: File) {
+    if (!raw.type.startsWith("image/")) { setError("শুধু ছবি (JPG/PNG) দিন"); return; }
+    setResult(null); setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null);
     setPhase("reading"); setProgress(0);
+    setStatus("ছবি প্রস্তুত হচ্ছে...");
+    const small = await compressImage(raw);
+    setFile(small); setFileHash(await sha256Hex(small));
+    setPreview(URL.createObjectURL(small));
     setStatus("ভাষার ফাইল প্রস্তুত হচ্ছে (প্রথমবার একটু সময় লাগে)...");
     try {
       const { createWorker } = await import("tesseract.js");
@@ -35,15 +50,17 @@ export default function Upload() {
           if (m.status === "recognizing text") { setStatus("বিল পড়া হচ্ছে..."); setProgress(Math.round(m.progress * 100)); }
         },
       });
-      const { data } = await worker.recognize(file);
+      const { data } = await worker.recognize(small);
       await worker.terminate();
-      setOcrText(data.text);
+      setOcrText(data.text); setConfidence(Math.round(data.confidence));
       const p = parseBill(data.text);
-      if (p.kwh !== null) { setQuantity(String(p.kwh)); setActivity("electricity"); }
+      setMeter(p.meter);
+      if (p.kwh !== null) { setQuantity(String(p.kwh)); setOcrQty(String(p.kwh)); setActivity("electricity"); }
+      else setCandidates(candidateNumbers(data.text));
       if (p.month) setMonth(p.month);
       setStatus(p.kwh !== null
-        ? `সংখ্যা পাওয়া গেছে · OCR confidence ${Math.round(data.confidence)}% — ছবির সাথে মিলিয়ে নিন`
-        : "সংখ্যা নিশ্চিতভাবে পাওয়া যায়নি — নিজে লিখে দিন");
+        ? `সংখ্যা পাওয়া গেছে · OCR confidence ${Math.round(data.confidence)}%`
+        : "ব্যবহৃত ইউনিট নিশ্চিতভাবে পাওয়া যায়নি — নিচের সংখ্যা থেকে বাছুন বা নিজে লিখুন");
     } catch {
       setStatus("OCR চালানো যায়নি — সংখ্যা নিজে লিখে দিন");
     }
@@ -55,25 +72,40 @@ export default function Upload() {
     if (!confirmed) { setError("আগে ছবির সাথে সংখ্যা মিলিয়ে টিক দিন"); return; }
     const unit = FACTORS.find((f) => f.activity === activity)!.unit;
     setPhase("saving");
-    const res = await fetch("/api/calculate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activity, unit, quantity: Number(quantity), month }),
-    });
+    let res: Response;
+    if (file) {
+      const fd = new FormData();
+      fd.append("file", file, "bill.jpg");
+      fd.append("file_hash", fileHash);
+      fd.append("activity", activity); fd.append("unit", unit); fd.append("quantity", quantity); fd.append("month", month);
+      fd.append("meta", JSON.stringify({
+        ocr_confidence: confidence, edited_after_ocr: ocrQty !== null && ocrQty !== quantity,
+        meter_check: meter ? { ...meter, ok: Math.abs(meter.expected - Number(quantity)) <= Math.max(1, Number(quantity) * 0.005) } : null,
+      }));
+      res = await fetch("/api/calculate", { method: "POST", body: fd });
+    } else {
+      res = await fetch("/api/calculate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activity, unit, quantity: Number(quantity), month }),
+      });
+    }
     const json = await res.json();
     if (!res.ok) { setError(json.error || "সমস্যা হয়েছে"); setPhase("review"); }
     else { setResult(json); setPhase("done"); }
   }
 
   function reset() {
-    setPreview(null); setPhase("idle"); setQuantity(""); setMonth(""); setResult(null); setError(""); setConfirmed(false); setOcrText("");
+    setFile(null); setFileHash(""); setPreview(null); setPhase("idle"); setQuantity(""); setMonth(""); setResult(null);
+    setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null); setStatus("");
   }
 
   const unit = FACTORS.find((f) => f.activity === activity)?.unit;
   const steps = ["ছবি", "পড়া", "নিশ্চিত", "সিল"];
-  const stepIdx = { idle: 0, reading: 1, review: 2, saving: 2, done: 3 }[phase];
+  const stepIdx = { idle: 0, reading: 1, review: 2, saving: 3, done: 4 }[phase];
+  const meterMatches = meter && quantity ? Math.abs(meter.expected - Number(quantity)) <= Math.max(1, Number(quantity) * 0.005) : null;
 
   return (
-    <Shell eyebrow="ধাপ ১" title="বিল upload" sub="ছবি আপনার device-এই পড়া হয় — server-এ যায় শুধু নিশ্চিত করা সংখ্যা">
+    <Shell eyebrow="ধাপ ১" title="বিল upload" sub="ছবি আপনার device-এই পড়া হয় — মূল বিল প্রমাণ হিসেবে সংরক্ষিত ও hash-সিল হয়">
       <ol className="mb-8 flex items-center gap-2 text-sm">
         {steps.map((s, i) => (
           <li key={s} className="flex items-center gap-2">
@@ -88,7 +120,6 @@ export default function Upload() {
       </ol>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-        {/* ছবির জায়গা */}
         <div
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
@@ -97,13 +128,18 @@ export default function Upload() {
           className={`relative flex min-h-[380px] items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition ${
             drag ? "scale-[1.01] border-[var(--leaf)] bg-emerald-50" : preview ? "border-transparent bg-[var(--ink)]" : "cursor-pointer border-black/15 bg-white hover:border-[var(--leaf)] hover:bg-emerald-50/40"}`}>
           <input ref={input} type="file" accept="image/*" capture="environment" className="hidden"
-            onChange={(e) => e.target.files?.[0] && runOcr(e.target.files[0])} />
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) runOcr(f); }} />
           {preview ? (
             <>
-              <img src={preview} alt="বিল" className="max-h-[520px] w-full object-contain" />
+              <img src={preview} alt="বিল" className="max-h-[560px] w-full object-contain" />
               {phase === "reading" && <div className="scanline" />}
               <button onClick={(e) => { e.stopPropagation(); reset(); }}
                 className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-medium shadow hover:bg-white">নতুন বিল</button>
+              {fileHash && (
+                <span className="absolute bottom-3 left-3 rounded-full bg-black/60 px-3 py-1 font-mono text-[10px] text-white/80" title={fileHash}>
+                  SHA-256 {fileHash.slice(0, 12)}…
+                </span>
+              )}
             </>
           ) : (
             <div className="p-8 text-center">
@@ -115,7 +151,6 @@ export default function Upload() {
           )}
         </div>
 
-        {/* ফর্ম */}
         <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
           {phase === "reading" ? (
             <div className="flex h-full flex-col justify-center">
@@ -129,13 +164,27 @@ export default function Upload() {
             <div>
               <div className="rounded-xl bg-[var(--ink)] p-5 text-white">
                 <p className="text-sm text-white/60">Scope {result.scope} নির্গমন</p>
-                <p className="mt-1 text-4xl font-bold text-[var(--lime)]">{result.tonnes_co2e} <span className="text-lg">tCO₂e</span></p>
-                <p className="mt-3 text-sm text-white/70">{result.formula}</p>
-                <p className="mt-1 text-xs text-white/40">{result.factor_source}</p>
+                <p className="mt-1 text-4xl font-bold text-[var(--lime)]">{fmt(result.tonnes_co2e)} <span className="text-lg">tCO₂e</span></p>
+                <p className="mt-3 text-sm text-white/70">{result.formula} = {fmt(result.kg_co2e, 1)} kg</p>
+                <p className="mt-1 text-xs text-white/40">গুণকের উৎস: {result.factor_source}</p>
               </div>
+
+              <div className="mt-4 space-y-2 text-sm">
+                <p className="font-semibold">প্রমাণের স্তর</p>
+                <Check ok label="L1 · মানুষ নিশ্চিত করেছেন" />
+                <Check ok={!!result.evidence} label={result.evidence ? "L2 · মূল বিল সংযুক্ত ও সংরক্ষিত" : "L2 · মূল বিল সংযুক্ত নেই (হাতে লেখা)"} />
+                {result.evidence?.meter_check && (
+                  <Check ok={result.evidence.meter_check.ok}
+                    label={result.evidence.meter_check.ok
+                      ? `মিটার রিডিং মিলেছে: (${result.evidence.meter_check.present.toLocaleString()} − ${result.evidence.meter_check.previous.toLocaleString()}) × ${result.evidence.meter_check.multiplier} = ${result.evidence.meter_check.expected.toLocaleString()}`
+                      : `মিটার রিডিং থেকে ${result.evidence.meter_check.expected.toLocaleString()} হয় — নিশ্চিত করা সংখ্যার সাথে মেলেনি`} />
+                )}
+                <Check ok label="L3 · Ledger-এ hash-সিল, পরে বদলানো যায় না" />
+              </div>
+
               <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs">
-                <p className="font-semibold text-emerald-900">⛓ Ledger-এ সিল হয়েছে</p>
-                <p className="mt-1 break-all font-mono text-emerald-800/70">{result.ledger_hash}</p>
+                {result.evidence && <p className="break-all font-mono text-emerald-800/70"><b className="font-sans text-emerald-900">বিলের hash:</b> {result.evidence.file_hash}</p>}
+                <p className="mt-1 break-all font-mono text-emerald-800/70"><b className="font-sans text-emerald-900">Ledger hash:</b> {result.ledger_hash}</p>
               </div>
               <div className="mt-5 flex gap-3">
                 <button onClick={reset} className="flex-1 rounded-full border py-2.5 text-sm font-medium transition hover:bg-black/5">আরেকটা বিল</button>
@@ -165,6 +214,28 @@ export default function Upload() {
                   <span className="grid place-items-center px-3 text-sm text-gray-400">{unit}</span>
                 </div>
               </label>
+
+              {candidates.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs text-gray-500">বিলে পাওয়া সংখ্যা — কোনটা ব্যবহৃত ইউনিট?</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {candidates.map((n) => (
+                      <button key={n} onClick={() => setQuantity(String(n))}
+                        className={`rounded-full border px-3 py-1 text-xs tabular-nums transition ${quantity === String(n) ? "border-[var(--leaf)] bg-emerald-50" : "border-black/10 hover:border-[var(--leaf)]"}`}>
+                        {n.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {meter && (
+                <div className={`rounded-xl px-3 py-2 text-xs ${meterMatches ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}`}>
+                  <b>মিটার যাচাই:</b> ({meter.present.toLocaleString()} − {meter.previous.toLocaleString()}) × {meter.multiplier} = <b>{meter.expected.toLocaleString()}</b>
+                  {meterMatches ? " ✓ পরিমাণের সাথে মিলেছে" : " ⚠ পরিমাণের সাথে মেলেনি — আবার দেখুন"}
+                </div>
+              )}
+
               <label className="block text-sm font-medium">মাস
                 <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2.5 outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-[var(--leaf)]/20" />
@@ -175,7 +246,7 @@ export default function Upload() {
               </label>
               <button onClick={confirm} disabled={!quantity || !month || phase === "saving"}
                 className="w-full rounded-full bg-[var(--ink)] py-3 font-semibold text-white transition enabled:hover:scale-[1.02] enabled:hover:shadow-xl disabled:opacity-30">
-                {phase === "saving" ? "সিল করা হচ্ছে..." : "নিশ্চিত করুন ও হিসাব করুন"}
+                {phase === "saving" ? "বিল সংরক্ষণ ও সিল করা হচ্ছে..." : "নিশ্চিত করুন ও হিসাব করুন"}
               </button>
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             </div>
@@ -190,5 +261,14 @@ export default function Upload() {
         </details>
       )}
     </Shell>
+  );
+}
+
+function Check({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <p className="flex items-start gap-2">
+      <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] text-white ${ok ? "bg-[var(--leaf)]" : "bg-amber-500"}`}>{ok ? "✓" : "!"}</span>
+      <span className={ok ? "" : "text-amber-800"}>{label}</span>
+    </p>
   );
 }

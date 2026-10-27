@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 export type Row = {
   id: string; activity: string; quantity: number; unit: string; period_month: string;
   scope: number; kg_co2e: number; hash: string; factor: number; factor_source: string; factor_version: string;
+  record_id: string; evidence_level: string; has_bill: boolean; meter_ok: boolean | null;
 };
 
 export function useRecords() {

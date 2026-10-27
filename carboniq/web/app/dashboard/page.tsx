@@ -128,7 +128,7 @@ export default function Dashboard() {
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                <tr><th className="px-5 py-3">মাস</th><th>ধরন</th><th>পরিমাণ</th><th>Scope</th><th className="pr-5 text-right">kg CO₂e</th><th className="pr-5">Hash</th></tr>
+                <tr><th className="px-5 py-3">মাস</th><th>ধরন</th><th>পরিমাণ</th><th>Scope</th><th className="pr-5 text-right">kg CO₂e</th><th>প্রমাণ</th><th className="pr-5">Hash</th></tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
@@ -138,6 +138,9 @@ export default function Dashboard() {
                     <td className="tabular-nums">{r.quantity.toLocaleString()} {r.unit}</td>
                     <td><span className={`rounded-full px-2 py-0.5 text-xs ${r.scope === 1 ? "bg-[var(--forest)] text-white" : "bg-[#d6efe0] text-[var(--forest)]"}`}>S{r.scope}</span></td>
                     <td className="pr-5 text-right tabular-nums">{r.kg_co2e.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+                    <td>{r.has_bill
+                      ? <a href={`/api/bill?record=${r.record_id}`} target="_blank" className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900 hover:bg-emerald-200">বিল দেখুন{r.meter_ok ? " ✓" : ""}</a>
+                      : <span className="text-xs text-gray-400">{r.evidence_level === "L1+L3" ? "synthetic" : "—"}</span>}</td>
                     <td className="pr-5 font-mono text-xs text-gray-400" title={r.hash}>{r.hash.slice(0, 10)}…</td>
                   </tr>
                 ))}

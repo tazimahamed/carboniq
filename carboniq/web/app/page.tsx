@@ -71,7 +71,7 @@ export default function Home() {
               </div>
               <div className="absolute -bottom-6 -left-6 rounded-xl border border-white/10 bg-[var(--forest)] px-4 py-3 shadow-xl">
                 <p className="text-xs text-white/60">Scope 2</p>
-                <p className="font-bold">৮০.৫৯ টন CO₂e</p>
+                <p className="font-bold">৯৬.০৫ টন CO₂e</p>
               </div>
               <div className="absolute -right-4 -top-5 rounded-full border border-white/10 bg-white px-3 py-1.5 text-xs font-medium text-[var(--ink)] shadow-xl">
                 ✓ Hash-সিলকৃত

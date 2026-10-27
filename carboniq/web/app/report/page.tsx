@@ -56,13 +56,14 @@ export default function Report() {
       <section className="rounded bg-gray-50 p-3 text-sm">
         <h2 className="mb-1 font-semibold">প্রমাণ ও অখণ্ডতা</h2>
         <p>{rows.length}টা record, প্রতিটা মানুষের নিশ্চিত করা (L1) ও SHA-256 hash chain-এ সিল করা (L3)।</p>
+        <p>মূল বিল সংযুক্ত (L2): {rows.filter((r) => r.has_bill).length}/{rows.length}টা record · মিটার রিডিং মিলেছে: {rows.filter((r) => r.meter_ok).length}টা · বাকিগুলো synthetic demo data।</p>
         <p>Ledger যাচাই: {valid ? "✅ অক্ষত" : "⚠ যাচাই ব্যর্থ"}</p>
         <p className="break-all text-xs text-gray-500">শেষ hash: {lastHash}</p>
       </section>
 
       <footer className="border-t pt-3 text-xs text-gray-500">
         Emission factors: UK Government GHG Conversion Factors 2026 (OGL v3.0). Grid carbon intensity: Ember (CC-BY-4.0).
-        এটা স্বাধীনভাবে নিরীক্ষিত (L4) report নয়। Demo factory-র সব সংখ্যা synthetic।
+        Scope 2 location-based; grid গুণক Ember-এর lifecycle intensity (সরবরাহ-শৃঙ্খলসহ), তাই শুধু দহনভিত্তিক গুণকের চেয়ে কিছুটা বেশি এবং রক্ষণশীল; T&D loss অন্তর্ভুক্ত নয়। এটা স্বাধীনভাবে নিরীক্ষিত (L4) report নয়। Demo factory-র সব সংখ্যা synthetic।
       </footer>
     </article>
     </Shell>
