@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/upload", label: "বিল upload" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/report", label: "Report" },
+  { href: "/copilot", label: "Copilot" },
   { href: "/developers", label: "API · MCP" },
 ];
 

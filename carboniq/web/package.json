@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.73",
     "@supabase/supabase-js": "^2.45.0",
     "heic2any": "0.0.4",
     "next": "^14.2.35",
