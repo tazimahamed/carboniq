@@ -1,175 +1,175 @@
+"use client";
 import Link from "next/link";
-import { CountUp, Reveal, Spotlight, TiltCard } from "@/components/fx";
+import { useState } from "react";
+import { useRecords } from "@/lib/useRecords";
+import { ACTIVITY_LABEL } from "@/lib/factors";
+import Shell from "@/components/Shell";
+import { CountUp, TiltCard } from "@/components/fx";
 
-const STEPS = [
-  { n: "০১", t: "বিলের ছবি তুলুন", d: "Phone-এর camera দিয়ে বিদ্যুৎ, গ্যাস বা ডিজেলের বিল। ছবি আপনার device-এই পড়া হয়।" },
-  { n: "০২", t: "AI পড়ে, আপনি নিশ্চিত করেন", d: "বাংলা ও English OCR সংখ্যা বের করে। ছবির পাশে মিলিয়ে এক click-এ নিশ্চিত।" },
-  { n: "০৩", t: "হিসাব ও hash-সিল", d: "সরকারি গুণকে scope ১ ও ২ হিসাব, প্রতিটা record SHA-256 chain-এ সিল — পরে বদলানো যায় না।" },
-  { n: "০৪", t: "Buyer-ready report", d: "উৎস, গুণক, version আর ledger hash-সহ PDF, buyer বা auditor-কে পাঠানোর জন্য প্রস্তুত।" },
-];
+const BN_MONTH = ["জানু", "ফেব্রু", "মার্চ", "এপ্রি", "মে", "জুন", "জুলা", "আগ", "সেপ্টে", "অক্টো", "নভে", "ডিসে"];
+const monthLabel = (m: string) => `${BN_MONTH[parseInt(m.slice(5, 7), 10) - 1]} ${m.slice(2, 4)}`;
 
-const FEATURES = [
-  { i: "◎", t: "On-device OCR", d: "Tesseract বাংলা + English, browser-এই চলে। বিল server-এ যাওয়ার আগেই পড়া শেষ।" },
-  { i: "⛓", t: "Evidence Ledger", d: "প্রতিটা সংখ্যার পেছনে বিল, গুণক, উৎস আর hash। Auditor এক click-এ যাচাই করতে পারেন।" },
-  { i: "∑", t: "নিরীক্ষাযোগ্য হিসাব", d: "হিসাবে AI নেই — কার্যক্রম × গুণক। একই input-এ সবসময় একই ফল।" },
-  { i: "⚑", t: "ডুপ্লিকেট আটকায়", d: "একই মাসের বিল দুবার দিলে ধরে ফেলে, যাতে কিছু দুবার গোনা না হয়।" },
-  { i: "⌁", t: "সরকারি গুণক", d: "UK DESNZ 2026 (OGL) আর বাংলাদেশের grid intensity, version সহ।" },
-  { i: "◈", t: "Human gate", d: "AI যা পড়ে, মানুষ নিশ্চিত না করা পর্যন্ত কোনো হিসাবে যায় না।" },
-  { i: "⇄", t: "MCP server", d: "Buyer-এর নিজের AI agent সরাসরি প্রমাণসহ সংখ্যা পড়তে পারে — get_emissions, explain_calculation, verify_ledger।" },
-  { i: "✓", t: "মিটার যাচাই", d: "বিলের মিটার রিডিং থেকে আলাদা করে ইউনিট হিসাব করে মিলিয়ে দেখে — ভুল বা নকল বিল ধরার জন্য।" },
-  { i: "▤", t: "যেকোনো বিল", d: "ছবি, iPhone-এর HEIC বা email-এর PDF — সব একই জায়গায়।" },
-];
+export default function Dashboard() {
+  const { rows, valid, error, loading, total, reload } = useRecords();
+  const [seeding, setSeeding] = useState("");
+  const [hover, setHover] = useState<string | null>(null);
 
-export default function Home() {
+  async function reset() {
+    if (!confirm("Demo-র সব ডেটা আর upload করা বিল মুছে নতুন ১২ মাসের demo data বসানো হবে। চালিয়ে যাবেন?")) return;
+    setSeeding("Demo আবার শুরু হচ্ছে...");
+    try {
+      const j = await fetch("/api/demo/reset", { method: "POST" }).then((r) => r.json());
+      setSeeding(j.error ? j.error : `Demo নতুন করে শুরু হয়েছে (${j.records}টা record)`);
+    } catch { setSeeding("Server সময়মতো উত্তর দেয়নি — আবার চেষ্টা করুন"); }
+    reload();
+  }
+
+  async function seed() {
+    setSeeding("Demo data বানানো হচ্ছে...");
+    try {
+      const j = await fetch("/api/demo/seed", { method: "POST" }).then((r) => r.json());
+      setSeeding(j.error ? j.error : `${j.months} মাসের demo data যোগ হয়েছে (${j.records}টা record)`);
+    } catch {
+      setSeeding("Server সময়মতো উত্তর দেয়নি — page refresh করে আবার চেষ্টা করুন");
+    }
+    reload();
+  }
+
+  const months = Array.from(new Set(rows.map((r) => r.period_month.slice(0, 7)))).sort();
+  const byMonth = months.map((m) => {
+    const rs = rows.filter((r) => r.period_month.startsWith(m));
+    const s1 = rs.filter((r) => r.scope === 1).reduce((a, r) => a + r.kg_co2e, 0) / 1000;
+    const s2 = rs.filter((r) => r.scope === 2).reduce((a, r) => a + r.kg_co2e, 0) / 1000;
+    return { m, s1, s2, t: s1 + s2 };
+  });
+  const max = Math.max(1, ...byMonth.map((x) => x.t));
+  const peak = byMonth.reduce((a, b) => (b.t > a.t ? b : a), byMonth[0] ?? { m: "", t: 0, s1: 0, s2: 0 });
+  const t = total(), s1 = total(1), s2 = total(2);
+
+  const stats = [
+    { k: "মোট নির্গমন", v: t, sub: `${months.length} মাস`, accent: true },
+    { k: "Scope 1 · জ্বালানি", v: s1, sub: t ? `${((s1 / t) * 100).toFixed(0)}% মোটের` : "—" },
+    { k: "Scope 2 · বিদ্যুৎ", v: s2, sub: t ? `${((s2 / t) * 100).toFixed(0)}% মোটের` : "—" },
+    { k: "সর্বোচ্চ মাস", v: peak?.t ?? 0, sub: peak?.m ? monthLabel(peak.m) : "—" },
+  ];
+
   return (
-    <main>
-      {/* HERO */}
-      <Spotlight className="relative overflow-hidden bg-[var(--ink)] text-white">
-        <div className="grid-bg absolute inset-0" />
-        <div className="absolute -right-40 -top-40 h-[520px] w-[520px] rounded-full bg-[var(--leaf)]/30 blur-[120px]" />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-24 pt-32 lg:grid-cols-[1.15fr_1fr]">
-          <div>
-            <Reveal>
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/80">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--lime)]" /> বাংলাদেশের garment শিল্পের জন্য
-              </span>
-            </Reveal>
-            <Reveal delay={80}>
-              <h1 className="mt-6 text-4xl font-bold leading-[1.15] tracking-tight sm:text-6xl">
-                বিলের ছবি থেকে <span className="bg-gradient-to-r from-[var(--lime)] to-emerald-300 bg-clip-text text-transparent">buyer-ready</span> কার্বন report
-              </h1>
-            </Reveal>
-            <Reveal delay={160}>
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
-                Upload করুন, AI পড়ে নেবে, আপনি নিশ্চিত করবেন — আর প্রতিটা সংখ্যার প্রমাণসহ scope ১ ও ২ নির্গমনের হিসাব, hash-সিল করা।
-              </p>
-            </Reveal>
-            <Reveal delay={240}>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/upload" className="group rounded-full bg-[var(--lime)] px-6 py-3 font-semibold text-[var(--ink)] shadow-[0_0_40px_-8px_var(--lime)] transition hover:scale-105">
-                  বিল upload করুন <span className="inline-block transition group-hover:translate-x-1">→</span>
-                </Link>
-                <Link href="/dashboard" className="rounded-full border border-white/20 px-6 py-3 font-medium text-white transition hover:border-white/50 hover:bg-white/5">
-                  Demo dashboard দেখুন
-                </Link>
-              </div>
-            </Reveal>
-          </div>
+    <Shell eyebrow="Demo Knit Factory · গাজীপুর" title="Dashboard" sub="নিশ্চিত ও hash-সিল করা record থেকে"
+      right={<div className="flex items-center gap-2">
+        <button onClick={reset} className="btn-ghost-dark rounded-full px-4 py-2.5 text-sm transition" title="Demo-র সব ডেটা মুছে নতুন করে শুরু">↺ Demo reset</button>
+        <Link href="/report" className="btn-lime rounded-full px-5 py-2.5 text-sm font-bold transition">Report (PDF) →</Link>
+      </div>}>
+      {error && <p className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</p>}
 
-          {/* বিল স্ক্যান হওয়ার ছবি */}
-          <Reveal delay={200} className="relative">
-            <div className="floaty relative mx-auto w-full max-w-sm">
-              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] p-5 shadow-2xl backdrop-blur">
-                <div className="scanline" />
-                <div className="flex items-center justify-between text-xs text-white/50">
-                  <span>বিদ্যুৎ বিল · জুলাই ২০২৬</span><span>DPDC</span>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {[70, 90, 55, 80].map((w, i) => <div key={i} className="h-2 rounded bg-white/10" style={{ width: `${w}%` }} />)}
-                </div>
-                <div className="mt-5 rounded-xl border border-[var(--lime)]/40 bg-[var(--lime)]/10 p-3">
-                  <p className="text-xs text-white/60">ব্যবহৃত ইউনিট</p>
-                  <p className="text-2xl font-bold text-[var(--lime)]">১,৩৮,০০০ kWh</p>
-                </div>
-              </div>
-              <div className="absolute -bottom-6 -left-6 rounded-xl border border-white/10 bg-[var(--forest)] px-4 py-3 shadow-xl">
-                <p className="text-xs text-white/60">Scope 2</p>
-                <p className="font-bold">৯৬.০৫ টন CO₂e</p>
-              </div>
-              <div className="absolute -right-4 -top-5 rounded-full border border-white/10 bg-white px-3 py-1.5 text-xs font-medium text-[var(--ink)] shadow-xl">
-                ✓ Hash-সিলকৃত
-              </div>
-            </div>
-          </Reveal>
-        </div>
-
-        {/* সংখ্যা */}
-        <div className="relative border-t border-white/10">
-          <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-4 py-10 md:grid-cols-4">
-            {[
-              { v: 14000, s: "+", l: "উৎপাদন কেন্দ্র Higg FEM ব্যবহার করে" },
-              { v: 100, s: "%", l: "record মানুষের নিশ্চিত করা" },
-              { v: 256, s: "-bit", l: "SHA hash chain-এ সিল" },
-              { v: 0, s: " ৳", l: "AI API খরচ — সব device-এ চলে" },
-            ].map((x) => (
-              <div key={x.l}>
-                <p className="text-3xl font-bold text-[var(--lime)]"><CountUp to={x.v} suffix={x.s} /></p>
-                <p className="mt-1 text-sm text-white/60">{x.l}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Spotlight>
-
-      {/* উৎসের সারি */}
-      <div className="overflow-hidden border-b border-black/5 bg-white py-4">
-        <div className="marquee flex w-max gap-12 whitespace-nowrap text-sm text-gray-500">
-          {Array.from({ length: 2 }).flatMap((_, k) =>
-            ["UK DESNZ 2026 · OGL v3.0", "Ember · CC-BY-4.0", "GHG Protocol", "Global Solar Atlas · CC BY 4.0", "Tesseract OCR", "SHA-256 Ledger", "Supabase", "বাংলা ও English"]
-              .map((t) => <span key={`${k}-${t}`} className="flex items-center gap-12">{t}<span className="text-[var(--leaf)]">✦</span></span>))}
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((s) => (
+          <TiltCard key={s.k} className={`rounded-2xl border p-5 shadow-sm ${s.accent ? "border-transparent bg-[var(--ink)] text-white" : "border-[var(--line)] bg-white"}`}>
+            <p className={`text-sm ${s.accent ? "text-white/60" : "text-gray-500"}`}>{s.k}</p>
+            <p className="mt-2 text-3xl font-bold tracking-tight">
+              {loading ? "—" : <CountUp to={s.v} decimals={1} />}<span className={`ml-1 text-sm font-medium ${s.accent ? "text-[var(--lime)]" : "text-gray-400"}`}>tCO₂e</span>
+            </p>
+            <p className={`mt-1 text-xs ${s.accent ? "text-white/50" : "text-gray-400"}`}>{s.sub}</p>
+          </TiltCard>
+        ))}
       </div>
 
-      {/* কীভাবে কাজ করে */}
-      <section className="mx-auto max-w-6xl px-4 py-24">
-        <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--leaf)]">কীভাবে কাজ করে</p>
-          <h2 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">Excel-এ হাতে তোলা নয় — চার ধাপে প্রমাণসহ report</h2>
-        </Reveal>
-        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s, i) => (
-            <Reveal key={s.n} delay={i * 90}>
-              <TiltCard className="h-full rounded-2xl border border-black/5 bg-white p-6 shadow-sm hover:shadow-xl">
-                <p className="text-sm font-bold text-[var(--leaf)]">{s.n}</p>
-                <h3 className="mt-3 text-lg font-semibold">{s.t}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{s.d}</p>
-              </TiltCard>
-            </Reveal>
-          ))}
-        </div>
-      </section>
+      <div className={`mt-4 flex items-center gap-3 rounded-2xl border p-4 text-sm ${
+        valid === false ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-base shadow-sm">{valid === false ? "⚠" : "⛓"}</span>
+        <span>
+          {loading ? "Ledger যাচাই হচ্ছে..." : valid === null ? "Ledger যাচাই করা যায়নি"
+            : valid ? <><b>Ledger অক্ষত</b> — {rows.length}টা record SHA-256 chain-এ সিল, কোনোটা বদলানো হয়নি</> : "Ledger-এ গরমিল পাওয়া গেছে"}
+        </span>
+      </div>
 
-      {/* Feature */}
-      <section className="bg-[var(--forest)] py-24 text-white">
-        <div className="mx-auto max-w-6xl px-4">
-          <Reveal>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lime)]">কেন CarbonIQ</p>
-            <h2 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">প্রতিটা সংখ্যার পেছনে প্রমাণ</h2>
-          </Reveal>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f, i) => (
-              <Reveal key={f.t} delay={i * 70}>
-                <TiltCard className="h-full rounded-2xl border border-white/10 bg-white/[0.04] p-6 hover:border-[var(--lime)]/40">
-                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--lime)]/15 text-lg text-[var(--lime)]">{f.i}</span>
-                  <h3 className="mt-4 font-semibold">{f.t}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-white/65">{f.d}</p>
-                </TiltCard>
-              </Reveal>
-            ))}
+      {!loading && rows.length === 0 && !error && (
+        <div className="mt-6 rounded-2xl border-2 border-dashed border-black/10 bg-white p-10 text-center">
+          <p className="text-lg font-semibold">এখনো কোনো ডেটা নেই</p>
+          <p className="mt-1 text-sm text-gray-500">বিল upload করুন, অথবা ১২ মাসের synthetic demo data দিয়ে শুরু করুন</p>
+          <div className="mt-5 flex justify-center gap-3">
+            <button onClick={seed} className="rounded-full bg-[var(--lime)] px-5 py-2.5 font-semibold text-[var(--ink)] transition hover:scale-105">Demo data যোগ করুন</button>
+            <Link href="/upload" className="rounded-full border px-5 py-2.5 transition hover:bg-black/5">বিল upload</Link>
           </div>
         </div>
-      </section>
+      )}
+      {seeding && <p className="mt-3 text-sm text-gray-600">{seeding}</p>}
 
-      {/* CTA */}
-      <section className="mx-auto max-w-6xl px-4 py-24">
-        <Reveal>
-          <div className="relative overflow-hidden rounded-3xl bg-[var(--ink)] px-8 py-14 text-center text-white">
-            <div className="grid-bg absolute inset-0" />
-            <div className="relative">
-              <h2 className="text-3xl font-bold sm:text-4xl">Buyer-এর email আসার আগেই প্রস্তুত থাকুন</h2>
-              <p className="mx-auto mt-3 max-w-xl text-white/65">১২ মাসের demo factory-র ডেটা দিয়ে পুরো flow দেখুন — upload থেকে hash-সিল করা report পর্যন্ত।</p>
-              <div className="mt-8 flex justify-center gap-3">
-                <Link href="/dashboard" className="rounded-full bg-[var(--lime)] px-6 py-3 font-semibold text-[var(--ink)] transition hover:scale-105">Demo দেখুন</Link>
-                <Link href="/report" className="rounded-full border border-white/20 px-6 py-3 transition hover:bg-white/5">Report নমুনা</Link>
-              </div>
+      {byMonth.length > 0 && (
+        <div className="mt-6 card p-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <h2 className="font-semibold">মাসভিত্তিক নির্গমন</h2>
+            <div className="ml-auto flex gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--forest)]" /> Scope 1</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[#7cc49a]" /> Scope 2</span>
             </div>
           </div>
-        </Reveal>
-      </section>
+          <div className="relative mt-6 h-56 pl-12">
+            {[1, 0.5, 0].map((f) => (
+              <div key={f} className="absolute inset-x-0 flex items-center" style={{ bottom: `${f * 100}%` }}>
+                <span className="w-10 pr-2 text-right text-[11px] tabular-nums text-[var(--muted)]">{Math.round(max * f)}</span>
+                <span className="h-px flex-1 border-t border-dashed border-[var(--line)]" />
+              </div>
+            ))}
+          <div className="relative flex h-full items-end gap-2">
+            {byMonth.map((x) => {
+              const on = hover === x.m;
+              return (
+                <div key={x.m} className="relative flex h-full flex-1 flex-col justify-end"
+                  onMouseEnter={() => setHover(x.m)} onMouseLeave={() => setHover(null)}>
+                  {on && (
+                    <div className="absolute bottom-full left-1/2 z-10 mb-2 w-36 -translate-x-1/2 rounded-lg bg-[var(--ink)] p-2.5 text-xs text-white shadow-xl">
+                      <p className="font-semibold">{monthLabel(x.m)}</p>
+                      <p className="mt-1 text-white/70">Scope 1: {x.s1.toFixed(1)} t</p>
+                      <p className="text-white/70">Scope 2: {x.s2.toFixed(1)} t</p>
+                      <p className="mt-1 font-semibold text-[var(--lime)]">মোট: {x.t.toFixed(1)} t</p>
+                    </div>
+                  )}
+                  <div className={`mx-auto flex w-[62%] flex-col overflow-hidden rounded-t-md transition-all duration-300 ${on ? "opacity-100" : hover ? "opacity-40" : "opacity-100"}`}
+                    style={{ height: `${(x.t / max) * 100}%` }}>
+                    <div className="bg-[#7cc49a]" style={{ height: `${x.t ? (x.s2 / x.t) * 100 : 0}%` }} />
+                    <div className="flex-1 bg-[var(--forest)]" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </div>
+          <div className="mt-2 flex gap-2 pl-12">
+            {byMonth.map((x) => <span key={x.m} className="flex-1 text-center text-[10px] text-gray-500">{monthLabel(x.m)}</span>)}
+          </div>
+        </div>
+      )}
 
-      <footer className="border-t border-black/5 py-8 text-center text-xs text-gray-500">
-        CarbonIQ BD · Team AISLOP · Emission factors: UK Government GHG Conversion Factors 2026 (OGL v3.0) · Grid: Ember (CC-BY-4.0) · Demo data synthetic
-      </footer>
-    </main>
+      {rows.length > 0 && (
+        <div className="mt-6 overflow-hidden card">
+          <div className="flex items-center border-b px-5 py-4">
+            <h2 className="font-semibold">সব record</h2>
+            <span className="ml-auto rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">{rows.length}টা</span>
+          </div>
+          <div className="max-h-[420px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-50 text-left text-xs font-semibold text-[var(--muted)]">
+                <tr><th className="px-5 py-3">মাস</th><th>ধরন</th><th>পরিমাণ</th><th>Scope</th><th className="pr-5 text-right">kg CO₂e</th><th>প্রমাণ</th><th className="pr-5">Hash</th></tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-t border-gray-100 transition hover:bg-emerald-50/50">
+                    <td className="px-5 py-3">{monthLabel(r.period_month.slice(0, 7))}</td>
+                    <td>{ACTIVITY_LABEL[r.activity] ?? r.activity}</td>
+                    <td className="tabular-nums">{r.quantity.toLocaleString()} {r.unit}</td>
+                    <td><span className={`rounded-full px-2 py-0.5 text-xs ${r.scope === 1 ? "bg-[var(--forest)] text-white" : "bg-[#d6efe0] text-[var(--forest)]"}`}>S{r.scope}</span></td>
+                    <td className="pr-5 text-right tabular-nums">{r.kg_co2e.toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+                    <td>{r.has_bill
+                      ? <a href={`/api/bill?record=${r.record_id}`} target="_blank" className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900 hover:bg-emerald-200">বিল দেখুন{r.meter_ok ? " ✓" : ""}</a>
+                      : <span className="text-xs text-gray-400">{r.evidence_level === "L1+L3" ? "synthetic" : "—"}</span>}</td>
+                    <td className="pr-5 font-mono text-xs text-gray-400" title={r.hash}>{r.hash.slice(0, 10)}…</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Shell>
   );
 }

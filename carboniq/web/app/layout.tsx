@@ -1,9 +1,10 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Hind_Siliguri } from "next/font/google";
+import { Hind_Siliguri, Manrope } from "next/font/google";
 import Nav from "@/components/Nav";
 
-const font = Hind_Siliguri({ subsets: ["bengali", "latin"], weight: ["400", "500", "600", "700"], display: "swap" });
+const latin = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-latin", display: "swap" });
+const bangla = Hind_Siliguri({ subsets: ["bengali"], weight: ["400", "500", "600", "700"], variable: "--font-bangla", display: "swap" });
 
 export const metadata: Metadata = {
   title: "CarbonIQ BD — বিল থেকে কার্বন report",
@@ -12,8 +13,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="bn">
-      <body className={`${font.className} min-h-screen`}>
+    <html lang="bn" className={`${latin.variable} ${bangla.variable}`}>
+      <body className="min-h-screen" style={{ fontFamily: "var(--font-latin), var(--font-bangla), system-ui, sans-serif" }}>
         <Nav />
         {children}
       </body>

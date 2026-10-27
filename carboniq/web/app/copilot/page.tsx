@@ -94,15 +94,15 @@ export default function Copilot() {
     <Shell eyebrow="AI Copilot · MCP" title="Carbon Copilot" sub="বাংলা বা English-এ প্রশ্ন করুন — প্রতিটা উত্তর যাচাইযোগ্য ledger থেকে"
       right={
         <div className="text-right" title={`${MODEL_ID} · Apache 2.0 · আপনার browser-এ চলে, কোনো AI API নেই`}>
-          {ai === "off" && <button onClick={enableAi} className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium transition hover:border-[var(--leaf)] hover:shadow-sm">✦ AI উত্তর চালু করুন</button>}
-          {ai === "loading" && <div className="w-56"><p className="text-xs text-gray-500">AI প্রস্তুত হচ্ছে · {aiProgress.pct}%</p>
+          {ai === "off" && <button onClick={enableAi} className="btn-ghost-dark rounded-full px-4 py-2 text-sm font-medium transition">✦ AI উত্তর চালু করুন</button>}
+          {ai === "loading" && <div className="w-56"><p className="text-xs text-white/60">AI প্রস্তুত হচ্ছে · {aiProgress.pct}%</p>
             <div className="mt-1 h-1 overflow-hidden rounded-full bg-gray-200"><div className="h-full bg-[var(--leaf)] transition-all" style={{ width: `${Math.max(3, aiProgress.pct)}%` }} /></div></div>}
-          {ai === "failed" && <button onClick={enableAi} className="text-xs text-gray-500 hover:underline">AI চালু হয়নি · আবার চেষ্টা করুন</button>}
-          {ai === "on" && <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-900"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />AI চালু</span>}
+          {ai === "failed" && <button onClick={enableAi} className="text-xs text-white/60 hover:underline">AI চালু হয়নি · আবার চেষ্টা করুন</button>}
+          {ai === "on" && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--lime)]/15 px-3 py-1.5 text-xs font-medium text-[var(--lime)]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />AI চালু</span>}
         </div>
             }>
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-        <div className="flex h-[640px] flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
+        <div className="flex h-[640px] flex-col overflow-hidden card">
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
             {msgs.map((m, i) => m.role === "user" ? (
               <div key={i} className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-sm bg-[var(--forest)] px-4 py-2.5 text-sm text-white">{m.text}</div></div>
@@ -127,7 +127,7 @@ export default function Copilot() {
                       )}
                     </div>
                   )}
-                  {showTemplate === i && m.template && <div className="mt-2 rounded-xl border border-black/5 bg-white p-3 text-xs text-gray-600"><Rich text={m.template} /></div>}
+                  {showTemplate === i && m.template && <div className="mt-2 rounded-xl border border-[var(--line)] bg-white p-3 text-xs text-gray-600"><Rich text={m.template} /></div>}
                 </div>
               </div>
             ))}
@@ -149,7 +149,7 @@ export default function Copilot() {
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
+          <div className="card p-4">
             <p className="text-sm font-semibold">চেষ্টা করুন</p>
             <div className="mt-3 flex flex-col gap-2">
               {SUGGEST.map((s) => (

@@ -53,17 +53,17 @@ export default function Developers() {
           ["Endpoint", "/api/mcp", "POST · stateless · CORS খোলা"],
           ["নিরাপত্তা", "Read-only", "লেখার কোনো tool নেই · token ঐচ্ছিক"],
         ].map(([k, v, s]) => (
-          <div key={k} className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-gray-400">{k}</p>
-            <p className="mt-1 font-mono text-lg font-semibold">{v}</p>
+          <div key={k} className="card p-5">
+            <p className="text-[13px] font-medium text-[var(--muted)]">{k}</p>
+            <p className="mt-1 text-lg font-bold">{v}</p>
             <p className="mt-1 text-xs text-gray-500">{s}</p>
           </div>
         ))}
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.3fr]">
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1.2fr]">
+        <div className="min-w-0 space-y-4">
+          <div className="card p-5">
             <h2 className="font-semibold">Tool ({tools.length || 4}টা)</h2>
             <ul className="mt-3 space-y-3">
               {tools.map((t) => (
@@ -76,17 +76,17 @@ export default function Developers() {
             </ul>
           </div>
 
-          <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+          <div className="card p-5">
             <div className="flex items-center"><h2 className="font-semibold">Claude Desktop বা অন্য MCP client-এ যুক্ত করুন</h2>
               <button onClick={() => copy(config, "cfg")} className="ml-auto rounded-full border px-3 py-1 text-xs hover:bg-black/5">{copied === "cfg" ? "✓ Copied" : "Copy"}</button></div>
-            <pre className="mt-3 overflow-x-auto rounded-xl bg-[var(--ink)] p-4 text-xs text-[var(--lime)]">{config}</pre>
+            <pre className="mt-3 overflow-x-auto rounded-xl bg-[var(--ink)] p-4 text-xs text-white/80">{config}</pre>
             <div className="mt-4 flex items-center"><h3 className="text-sm font-semibold">অথবা সরাসরি HTTP</h3>
               <button onClick={() => copy(curl, "curl")} className="ml-auto rounded-full border px-3 py-1 text-xs hover:bg-black/5">{copied === "curl" ? "✓ Copied" : "Copy"}</button></div>
             <pre className="mt-2 overflow-x-auto rounded-xl bg-gray-50 p-4 text-xs text-gray-700">{curl}</pre>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+        <div className="card min-w-0 p-5">
           <h2 className="font-semibold">চালিয়ে দেখুন (live)</h2>
           <p className="text-xs text-gray-500">আসল MCP endpoint-এ request যায়, আসল ledger থেকে উত্তর আসে</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -105,7 +105,7 @@ export default function Developers() {
               </div>
               <div>
                 <p className="mb-1 text-xs font-medium text-gray-500">← Response {busy && "(অপেক্ষা...)"}</p>
-                <pre className="max-h-[420px] overflow-auto rounded-xl bg-[var(--ink)] p-3 text-xs text-[var(--lime)]">{busy ? "..." : res}</pre>
+                <pre className="max-h-[420px] overflow-auto rounded-xl bg-[var(--ink)] p-3 text-xs text-white/85">{busy ? "..." : res}</pre>
               </div>
             </div>
           ) : (

@@ -166,7 +166,7 @@ export default function Upload() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+        <div className="card p-6">
           {phase === "reading" ? (
             <div className="flex h-full flex-col justify-center">
               <p className="text-sm font-medium">{status}</p>
@@ -277,7 +277,7 @@ export default function Upload() {
       </div>
 
       {ocrText && (
-        <details className="mt-6 rounded-2xl border border-black/5 bg-white p-4 text-xs text-gray-500">
+        <details className="mt-6 rounded-2xl border border-[var(--line)] bg-white p-4 text-xs text-gray-500">
           <summary className="cursor-pointer font-medium text-gray-700">OCR-এর পুরো লেখা</summary>
           <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap">{ocrText}</pre>
         </details>

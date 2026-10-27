@@ -56,14 +56,14 @@ export default function Dashboard() {
   return (
     <Shell eyebrow="Demo Knit Factory · গাজীপুর" title="Dashboard" sub="নিশ্চিত ও hash-সিল করা record থেকে"
       right={<div className="flex items-center gap-2">
-        <button onClick={reset} className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-gray-600 transition hover:border-black/30" title="Demo-র সব ডেটা মুছে নতুন করে শুরু">↺ Demo reset</button>
-        <Link href="/report" className="rounded-full bg-[var(--forest)] px-5 py-2.5 text-sm font-medium text-white transition hover:scale-105 hover:shadow-lg">Report (PDF) →</Link>
+        <button onClick={reset} className="btn-ghost-dark rounded-full px-4 py-2.5 text-sm transition" title="Demo-র সব ডেটা মুছে নতুন করে শুরু">↺ Demo reset</button>
+        <Link href="/report" className="btn-lime rounded-full px-5 py-2.5 text-sm font-bold transition">Report (PDF) →</Link>
       </div>}>
       {error && <p className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">{error}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
-          <TiltCard key={s.k} className={`rounded-2xl border p-5 shadow-sm ${s.accent ? "border-transparent bg-[var(--ink)] text-white" : "border-black/5 bg-white"}`}>
+          <TiltCard key={s.k} className={`rounded-2xl border p-5 shadow-sm ${s.accent ? "border-transparent bg-[var(--ink)] text-white" : "border-[var(--line)] bg-white"}`}>
             <p className={`text-sm ${s.accent ? "text-white/60" : "text-gray-500"}`}>{s.k}</p>
             <p className="mt-2 text-3xl font-bold tracking-tight">
               {loading ? "—" : <CountUp to={s.v} decimals={1} />}<span className={`ml-1 text-sm font-medium ${s.accent ? "text-[var(--lime)]" : "text-gray-400"}`}>tCO₂e</span>
@@ -95,7 +95,7 @@ export default function Dashboard() {
       {seeding && <p className="mt-3 text-sm text-gray-600">{seeding}</p>}
 
       {byMonth.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+        <div className="mt-6 card p-6">
           <div className="flex flex-wrap items-center gap-4">
             <h2 className="font-semibold">মাসভিত্তিক নির্গমন</h2>
             <div className="ml-auto flex gap-4 text-xs text-gray-500">
@@ -103,7 +103,14 @@ export default function Dashboard() {
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[#7cc49a]" /> Scope 2</span>
             </div>
           </div>
-          <div className="mt-6 flex h-56 items-end gap-2">
+          <div className="relative mt-6 h-56 pl-12">
+            {[1, 0.5, 0].map((f) => (
+              <div key={f} className="absolute inset-x-0 flex items-center" style={{ bottom: `${f * 100}%` }}>
+                <span className="w-10 pr-2 text-right text-[11px] tabular-nums text-[var(--muted)]">{Math.round(max * f)}</span>
+                <span className="h-px flex-1 border-t border-dashed border-[var(--line)]" />
+              </div>
+            ))}
+          <div className="relative flex h-full items-end gap-2">
             {byMonth.map((x) => {
               const on = hover === x.m;
               return (
@@ -117,7 +124,7 @@ export default function Dashboard() {
                       <p className="mt-1 font-semibold text-[var(--lime)]">মোট: {x.t.toFixed(1)} t</p>
                     </div>
                   )}
-                  <div className={`flex w-full flex-col overflow-hidden rounded-t-md transition-all duration-300 ${on ? "opacity-100" : hover ? "opacity-40" : "opacity-100"}`}
+                  <div className={`mx-auto flex w-[62%] flex-col overflow-hidden rounded-t-md transition-all duration-300 ${on ? "opacity-100" : hover ? "opacity-40" : "opacity-100"}`}
                     style={{ height: `${(x.t / max) * 100}%` }}>
                     <div className="bg-[#7cc49a]" style={{ height: `${x.t ? (x.s2 / x.t) * 100 : 0}%` }} />
                     <div className="flex-1 bg-[var(--forest)]" />
@@ -126,21 +133,22 @@ export default function Dashboard() {
               );
             })}
           </div>
-          <div className="mt-2 flex gap-2">
+          </div>
+          <div className="mt-2 flex gap-2 pl-12">
             {byMonth.map((x) => <span key={x.m} className="flex-1 text-center text-[10px] text-gray-500">{monthLabel(x.m)}</span>)}
           </div>
         </div>
       )}
 
       {rows.length > 0 && (
-        <div className="mt-6 overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
+        <div className="mt-6 overflow-hidden card">
           <div className="flex items-center border-b px-5 py-4">
             <h2 className="font-semibold">সব record</h2>
             <span className="ml-auto rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">{rows.length}টা</span>
           </div>
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <thead className="sticky top-0 bg-gray-50 text-left text-xs font-semibold text-[var(--muted)]">
                 <tr><th className="px-5 py-3">মাস</th><th>ধরন</th><th>পরিমাণ</th><th>Scope</th><th className="pr-5 text-right">kg CO₂e</th><th>প্রমাণ</th><th className="pr-5">Hash</th></tr>
               </thead>
               <tbody>
