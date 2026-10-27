@@ -78,3 +78,6 @@ body { font-feature-settings: "tnum" 1; }
 
 /* gradient লেখা */
 .text-glow { background: linear-gradient(100deg, var(--lime), #7ee0a8 60%, var(--lime)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* phone-এ পাশে বাড়তি scroll না হয় (আলোর গোলক, চলমান সারি ইত্যাদি) */
+html, body { overflow-x: clip; }

@@ -105,12 +105,12 @@ export default function Copilot() {
         <div className="flex h-[640px] flex-col overflow-hidden card">
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
             {msgs.map((m, i) => m.role === "user" ? (
-              <div key={i} className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-sm bg-[var(--forest)] px-4 py-2.5 text-sm text-white">{m.text}</div></div>
+              <div key={i} className="flex justify-end"><div className="max-w-[80%] rounded-2xl rounded-br-md bg-[var(--ink)] px-4 py-2.5 text-sm text-white shadow-sm">{m.text}</div></div>
             ) : (
               <div key={i} className="flex gap-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--lime)] text-sm font-bold text-[var(--ink)]">C</span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--ink)] text-sm font-bold text-[var(--lime)]">C</span>
                 <div className="max-w-[85%]">
-                  <div className="rounded-2xl rounded-tl-sm bg-gray-50 px-4 py-3 text-sm leading-relaxed"><Rich text={m.text} /></div>
+                  <div className="rounded-2xl rounded-tl-md border border-[var(--line)] bg-[var(--paper)]/70 px-4 py-3 text-sm leading-relaxed"><Rich text={m.text} /></div>
                   {m.calls && m.calls.length > 0 && (
                     <div className="mt-1.5 flex items-center gap-2 pl-1 text-[11px] text-gray-400">
                       <span title={m.calls.map((c) => `${c.name} ${JSON.stringify(c.arguments)}`).join("\n")}>
@@ -131,9 +131,21 @@ export default function Copilot() {
                 </div>
               </div>
             ))}
+            {msgs.length === 1 && !busy && (
+              <div className="pt-6">
+                <p className="text-center text-xs text-[var(--muted)]">যেমন জিজ্ঞেস করতে পারেন</p>
+                <div className="mx-auto mt-3 grid max-w-lg gap-2 sm:grid-cols-2">
+                  {[["মোট নির্গমন কত?", "১২ মাসের মোট, scope অনুযায়ী"], ["কোন মাসে সবচেয়ে বেশি?", "সর্বোচ্চ ও সর্বনিম্ন মাস"], ["মে মাসে কেন বাড়ল?", "আগের মাসের সাথে তুলনা"], ["Ledger কি অক্ষত?", "পুরো hash chain যাচাই"]].map(([q, h]) => (
+                    <button key={q} onClick={() => ask(q)} className="rounded-xl border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--leaf)]/50 hover:bg-[var(--paper)]">
+                      <span className="block text-sm font-semibold">{q}</span><span className="block text-xs text-[var(--muted)]">{h}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {busy && (
               <div className="flex gap-3">
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--lime)] text-sm font-bold">C</span>
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--ink)] text-sm font-bold text-[var(--lime)]">C</span>
                 <div className="flex items-center gap-1 rounded-2xl bg-gray-50 px-4 py-3">
                   {[0, 1, 2].map((d) => <span key={d} className="h-2 w-2 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: `${d * 120}ms` }} />)}
                 </div>
@@ -144,7 +156,7 @@ export default function Copilot() {
           <form onSubmit={(e) => { e.preventDefault(); ask(input); }} className="flex gap-2 border-t p-3">
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="প্রশ্ন লিখুন... যেমন: অক্টোবরে কত নির্গমন হয়েছে?"
               className="flex-1 rounded-full border border-black/10 px-4 py-2.5 text-sm outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-[var(--leaf)]/20" />
-            <button disabled={busy || !input.trim()} className="rounded-full bg-[var(--ink)] px-5 text-sm font-semibold text-white transition enabled:hover:scale-105 disabled:opacity-30">পাঠান</button>
+            <button disabled={busy || !input.trim()} className="btn-lime rounded-full px-5 text-sm font-bold transition disabled:opacity-30">পাঠান</button>
           </form>
         </div>
 

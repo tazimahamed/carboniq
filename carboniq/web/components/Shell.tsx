@@ -1,26 +1,28 @@
 import type { ReactNode } from "react";
 
-/** ভেতরের পাতার মাথা — home-এর hero-র মতো গাঢ় সবুজ, grid আর আলো; নিচে কাজের অংশ */
-export default function Shell({ eyebrow, title, sub, right, children }: {
-  eyebrow: string; title: string; sub?: string; right?: ReactNode; children: ReactNode;
+/**
+ * কাজের পাতার মাথা — home-এর বড় hero না, একটা ছোট গাঢ় পাত।
+ * ব্র্যান্ড একই (গাঢ় সবুজ, lime), কিন্তু জায়গা কম নেয় যাতে কাজের অংশ উপরে থাকে।
+ */
+export default function Shell({ eyebrow, title, sub, right, children, wide = false }: {
+  eyebrow: string; title: string; sub?: string; right?: ReactNode; children: ReactNode; wide?: boolean;
 }) {
+  const w = wide ? "max-w-7xl" : "max-w-6xl";
   return (
     <>
-      <section className="grain relative overflow-hidden bg-[var(--ink)] text-white print:hidden">
-        <div className="grid-bg absolute inset-0" />
-        <div className="absolute -right-32 -top-40 h-[420px] w-[420px] rounded-full bg-[var(--leaf)]/25 blur-[110px]" />
-        <div className="relative mx-auto flex max-w-6xl flex-wrap items-end gap-6 px-4 pb-12 pt-32">
+      <section className="relative overflow-hidden bg-[var(--ink)] text-white print:hidden">
+        <div className="grid-bg absolute inset-0 opacity-60" />
+        <div className="absolute -right-24 -top-24 h-[260px] w-[260px] rounded-full bg-[var(--leaf)]/25 blur-[90px]" />
+        <div className={`relative mx-auto flex ${w} flex-wrap items-center gap-4 px-4 pb-7 pt-24`}>
           <div className="min-w-0">
-            <p className="flex items-center gap-2 text-[13px] font-semibold text-[var(--lime)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--lime)]" />{eyebrow}
-            </p>
-            <h1 className="mt-3 text-[34px] font-bold leading-tight tracking-tight sm:text-[42px]">{title}</h1>
-            {sub && <p className="mt-2 max-w-2xl text-[16px] leading-relaxed text-white/60">{sub}</p>}
+            <p className="text-[13px] text-white/50">{eyebrow}</p>
+            <h1 className="mt-1 text-[26px] font-bold leading-tight tracking-tight sm:text-[30px]">{title}</h1>
+            {sub && <p className="mt-1 max-w-2xl text-[14px] text-white/55">{sub}</p>}
           </div>
           <div className="ml-auto">{right}</div>
         </div>
       </section>
-      <main className="mx-auto max-w-6xl px-4 pb-20 pt-10 print:p-0">{children}</main>
+      <main className={`mx-auto ${w} px-4 pb-20 pt-8 print:max-w-none print:p-0`}>{children}</main>
     </>
   );
 }

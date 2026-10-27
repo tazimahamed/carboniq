@@ -139,8 +139,8 @@ export default function Upload() {
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) runOcr(f); }}
           onClick={() => !preview && input.current?.click()}
-          className={`relative flex min-h-[380px] items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition ${
-            drag ? "scale-[1.01] border-[var(--leaf)] bg-emerald-50" : preview ? "border-transparent bg-[var(--ink)]" : "cursor-pointer border-black/15 bg-white hover:border-[var(--leaf)] hover:bg-emerald-50/40"}`}>
+          className={`relative flex min-h-[380px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-dashed transition ${
+            drag ? "scale-[1.01] border-[var(--leaf)] bg-emerald-50" : preview ? "border-transparent bg-[var(--ink)]" : "cursor-pointer border-[var(--leaf)]/25 bg-white hover:border-[var(--leaf)] hover:bg-emerald-50/40"}`}>
           <input ref={input} type="file" accept={ACCEPT} className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) runOcr(f); }} />
           {preview ? (
@@ -157,11 +157,23 @@ export default function Upload() {
             </>
           ) : (
             <div className="p-8 text-center">
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[var(--lime)]/30 text-3xl">⇪</div>
-              <p className="mt-4 text-lg font-semibold">বিলের ছবি বা PDF এখানে টেনে আনুন</p>
-              <p className="mt-1 text-sm text-gray-500">অথবা click করে বাছুন · phone-এ camera বা gallery</p>
+              <div className="relative mx-auto h-24 w-20">
+                <div className="absolute inset-0 rotate-[-6deg] rounded-lg border border-[var(--line)] bg-white shadow-sm" />
+                <div className="absolute inset-0 rotate-[4deg] rounded-lg border border-[var(--line)] bg-white p-2.5 shadow-md">
+                  {[70, 90, 55, 80, 65].map((w, i) => <div key={i} className="mb-1.5 h-1 rounded bg-[var(--line)]" style={{ width: `${w}%` }} />)}
+                  <div className="mt-2 h-3 rounded bg-[var(--lime)]/60" />
+                </div>
+                <span className="absolute -bottom-2 -right-3 grid h-8 w-8 place-items-center rounded-full bg-[var(--ink)] text-[var(--lime)] shadow-lg">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                </span>
+              </div>
+              <p className="mt-6 text-lg font-bold">বিলের ছবি বা PDF এখানে টেনে আনুন</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">অথবা <span className="font-semibold text-[var(--leaf)] underline underline-offset-2">click করে বাছুন</span> · phone-এ camera বা gallery</p>
               {error && phase === "idle" && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-              <p className="mt-4 text-xs text-gray-400">JPG · PNG · WebP · HEIC (iPhone) · PDF (e-bill) — সোজা করে, ভালো আলোয় তুলুন</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-1.5">
+                {["JPG", "PNG", "WebP", "HEIC", "PDF"].map((f) => <span key={f} className="rounded-md border border-[var(--line)] bg-white px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">{f}</span>)}
+              </div>
+              <p className="mt-3 text-xs text-[var(--muted)]">সোজা করে, ভালো আলোয় তোলা ছবিতে সবচেয়ে ভালো পড়া যায়</p>
             </div>
           )}
         </div>
@@ -275,6 +287,22 @@ export default function Upload() {
           )}
         </div>
       </div>
+
+      {phase === "idle" && (
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          {[
+            ["আপনার device-এ পড়া হয়", "বাংলা ও English OCR browser-এই চলে, দুই রকম পরিষ্কার করা ছবি মিলিয়ে। ছবি server-এ যায় শুধু নিশ্চিত করার পর।"],
+            ["মিটার রিডিং দিয়ে যাচাই", "বিলে ছাপা ইউনিট আর (বর্তমান − পূর্ববর্তী রিডিং) আলাদা করে মেলানো হয়। না মিললে সতর্ক করে।"],
+            ["আপনি নিশ্চিত করলে সিল", "সংখ্যা মিলিয়ে টিক দিলে হিসাব হয়, আর মূল বিলের fingerprint-সহ record ledger-এ সিল হয়।"],
+          ].map(([t, d], i) => (
+            <div key={t} className="card p-5">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--ink)] text-xs font-bold text-[var(--lime)]">{["১", "২", "৩"][i]}</span>
+              <p className="mt-3 text-sm font-bold">{t}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-[var(--muted)]">{d}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {ocrText && (
         <details className="mt-6 rounded-2xl border border-[var(--line)] bg-white p-4 text-xs text-gray-500">
