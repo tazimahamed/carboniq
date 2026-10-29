@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { ACTIVITY_LABEL, FACTORS } from "@/lib/factors";
-import { candidateNumbers, parseBill, type MeterCheck } from "@/lib/parseBill";
+import { candidateNumbers, detectActivity, parseBill, parseFuel, type MeterCheck } from "@/lib/parseBill";
 import { ACCEPT, ocrVariants, sha256Hex, toBillImage } from "@/lib/image";
 import Shell from "@/components/Shell";
 
@@ -33,10 +33,29 @@ export default function Upload() {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
   const [drag, setDrag] = useState(false);
+  const [fuelNote, setFuelNote] = useState<string | null>(null);
+
+  const FUEL_BN: Record<string, string> = { electricity: "বিদ্যুৎ বিল", natural_gas: "গ্যাস বিল", lpg: "LPG রসিদ", diesel: "ডিজেল রসিদ" };
+  /** লেখা (OCR বা PDF) থেকে ধরন চিনে পরিমাণ বসানো; পাওয়া গেলে true */
+  function applyText(texts: string[]): { found: boolean; kind: string } {
+    const fuel = detectActivity(texts);
+    if (fuel !== "electricity") {
+      const f = parseFuel(texts, fuel);
+      setActivity(fuel); setMeter(f.meter); setFuelNote(f.note);
+      if (f.month) setMonth(f.month);
+      if (f.quantity !== null) { setQuantity(String(f.quantity)); setOcrQty(String(f.quantity)); return { found: true, kind: FUEL_BN[fuel] }; }
+      setCandidates(candidateNumbers(texts)); return { found: false, kind: FUEL_BN[fuel] };
+    }
+    const p = parseBill(texts);
+    setMeter(p.meter); setFuelNote(null);
+    if (p.month) setMonth(p.month);
+    if (p.kwh !== null) { setQuantity(String(p.kwh)); setOcrQty(String(p.kwh)); setActivity("electricity"); return { found: true, kind: FUEL_BN.electricity }; }
+    setCandidates(candidateNumbers(texts)); return { found: false, kind: FUEL_BN.electricity };
+  }
   const input = useRef<HTMLInputElement>(null);
 
   async function runOcr(raw: File) {
-    setResult(null); setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null);
+    setResult(null); setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null); setFuelNote(null);
     setPhase("reading"); setProgress(0);
     setStatus("ফাইল প্রস্তুত হচ্ছে...");
     let small: Blob; let pdfText: string | undefined;
@@ -51,12 +70,10 @@ export default function Upload() {
     setPreview(URL.createObjectURL(small));
     // Online PDF বিল: ভেতরের লেখা সরাসরি পড়া (OCR লাগে না, ভুলের সুযোগ নেই)
     if (pdfText) {
-      const p = parseBill([pdfText]);
-      if (p.kwh !== null) {
+      const r = applyText([pdfText]);
+      if (r.found) {
         setOcrText("[PDF-এর ভেতরের লেখা — OCR ছাড়া সরাসরি পড়া]\n\n" + pdfText); setConfidence(100);
-        setMeter(p.meter); setQuantity(String(p.kwh)); setOcrQty(String(p.kwh)); setActivity("electricity");
-        if (p.month) setMonth(p.month);
-        setStatus("Online PDF বিল — লেখা সরাসরি পড়া হয়েছে (OCR লাগেনি) · বিলের সাথে মিলিয়ে নিন");
+        setStatus(`Online PDF (${r.kind}) — লেখা সরাসরি পড়া হয়েছে, OCR লাগেনি · বিলের সাথে মিলিয়ে নিন`);
         setPhase("review"); return;
       }
     }
@@ -80,14 +97,10 @@ export default function Upload() {
       }
       await worker.terminate();
       setOcrText(texts.join("\n\n───── দ্বিতীয় পাঠ ─────\n\n")); setConfidence(Math.round(conf));
-      const p = parseBill(texts);
-      setMeter(p.meter);
-      if (p.kwh !== null) { setQuantity(String(p.kwh)); setOcrQty(String(p.kwh)); setActivity("electricity"); }
-      else setCandidates(candidateNumbers(texts));
-      if (p.month) setMonth(p.month);
-      setStatus(p.kwh !== null
-        ? `সংখ্যা পাওয়া গেছে · OCR confidence ${Math.round(conf)}% — বিলের সাথে মিলিয়ে নিন`
-        : "ব্যবহৃত ইউনিট নিশ্চিতভাবে পাওয়া যায়নি — নিচের সংখ্যা থেকে বাছুন বা নিজে লিখুন");
+      const r = applyText(texts);
+      setStatus(r.found
+        ? `${r.kind} চেনা গেছে · OCR confidence ${Math.round(conf)}% — বিলের সাথে মিলিয়ে নিন`
+        : `${r.kind} মনে হচ্ছে, কিন্তু পরিমাণ নিশ্চিতভাবে পাওয়া যায়নি — নিচের সংখ্যা থেকে বাছুন বা নিজে লিখুন`);
     } catch {
       setStatus("OCR চালানো যায়নি — সংখ্যা নিজে লিখে দিন");
     }
@@ -123,7 +136,7 @@ export default function Upload() {
 
   function reset() {
     setFile(null); setFileHash(""); setPreview(null); setPhase("idle"); setQuantity(""); setMonth(""); setResult(null);
-    setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null); setStatus("");
+    setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null); setFuelNote(null); setStatus("");
   }
 
   const unit = FACTORS.find((f) => f.activity === activity)?.unit;
@@ -274,6 +287,7 @@ export default function Upload() {
                 </div>
               )}
 
+              {fuelNote && <div className="rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-900"><b>হিসাব:</b> {fuelNote}</div>}
               {meter && (() => {
                 const f = (n: number) => n.toLocaleString("en-US");
                 const calc = `(${f(meter.present)} − ${f(meter.previous)}) × ${meter.multiplier} = ${f(meter.expected)}`;

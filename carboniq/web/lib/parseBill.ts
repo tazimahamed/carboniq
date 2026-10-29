@@ -195,3 +195,61 @@ export function candidateNumbers(raw: string | string[]) {
   const nums = (text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number).filter((n) => n >= 10 && n < 1e8 && !(n >= 1900 && n <= 2100));
   return Array.from(new Set(nums)).slice(0, 12);
 }
+
+// ================= গ্যাস, LPG, ডিজেল =================
+/** DESNZ 2026-এর নিজের দুই গুণক থেকে LPG-র ঘনত্ব: 1.55713 kg CO2e/লিটার ÷ 2.93936 kg CO2e/kg ≈ 0.53 kg/লিটার */
+export const LPG_KG_PER_LITRE = 0.53;
+
+export type Fuel = "electricity" | "natural_gas" | "lpg" | "diesel";
+
+/** লেখা দেখে নথির ধরন চেনা — কোন শব্দ কতবার আছে তার ওজনে */
+export function detectActivity(raw: string | string[]): Fuel {
+  const t = bnToEn(Array.isArray(raw) ? raw.join("\n") : raw).toLowerCase();
+  const score = (re: RegExp) => (t.match(re) ?? []).length;
+  const s: Record<Fuel, number> = {
+    electricity: score(/kwh|electric|বিদ্যুৎ|power distribution|desco|dpdc|nesco|reb\b|palli bidyut/g) * 2,
+    natural_gas: score(/natural gas|gas bill|গ্যাস বিল|titas|bakhrabad|jalalabad|karnaphuli|pashchimanchal|sundarban gas|evc|\bm3\b|m³|cubic met|ঘনমিটার/g) * 2 + score(/\bgas\b|গ্যাস/g),
+    lpg: score(/\blpg\b|cylinder|সিলিন্ডার|এলপিজি|bashundhara lp|omera|jamuna lpg/g) * 3,
+    diesel: score(/diesel|ডিজেল|\bhsd\b|high speed diesel|fuel station|filling station|পাম্প/g) * 3,
+  };
+  if (s.lpg) s.natural_gas = Math.max(0, s.natural_gas - score(/\bgas\b|গ্যাস/g)); // "LP gas" যেন প্রাকৃতিক গ্যাস না হয়
+  return (Object.entries(s) as [Fuel, number][]).sort((a, b) => b[1] - a[1])[0][1] > 0
+    ? (Object.entries(s) as [Fuel, number][]).sort((a, b) => b[1] - a[1])[0][0] : "electricity";
+}
+
+/** গ্যাস (m³), LPG (kg → লিটার) বা ডিজেল (লিটার) বিল/রসিদ থেকে পরিমাণ */
+export function parseFuel(raw: string | string[], fuel: Exclude<Fuel, "electricity">) {
+  const text = normalizeNumbers(bnToEn(Array.isArray(raw) ? raw.join("\n") : raw));
+  const month = findMonth(text);
+  const first = (res: RegExp[]) => { for (const re of res) { const m = text.match(re); if (m) { const n = parseFloat(m[1]); if (n > 0) return n; } } return null; };
+  if (fuel === "natural_gas") {
+    const m3 = first([
+      new RegExp(String.raw`(?:gas\s*consum\w*|consum\w*|volume|ব্যবহৃত\s*গ্যাস|ব্যবহার)` + SAME_LINE + NUM + String.raw`[ \t]*(?:m3|m³|cubic|ঘনমিটার)?`, "i"),
+      new RegExp(NUM + String.raw`[ \t]*(?:m3|m³|cubic\s*met\w*|ঘনমিটার)`, "i"),
+    ]);
+    const present = find(text, String.raw`present|current|বর্তমান`), previous = find(text, String.raw`previous|prev|পূর্ববর্তী`);
+    const meterOk = present !== null && previous !== null && m3 !== null ? Math.abs(present - previous - m3) <= Math.max(1, m3 * 0.005) : null;
+    const meter: MeterCheck | null = present !== null && previous !== null && present > previous
+      ? { previous, present, multiplier: 1, expected: present - previous, ok: !!meterOk, printed: m3 } : null;
+    return { activity: fuel, quantity: m3 ?? meter?.expected ?? null, unit: "m3", month, note: null, meterOk, meter };
+  }
+  if (fuel === "diesel") {
+    const l = first([
+      new RegExp(String.raw`(?:quantity|qty|volume|পরিমাণ)` + SAME_LINE + NUM + String.raw`[ \t]*(?:l\b|ltr|litre|liter|লিটার)`, "i"),
+      new RegExp(NUM + String.raw`[ \t]*(?:ltrs?|litres?|liters?|লিটার)\b`, "i"),
+    ]);
+    return { activity: fuel, quantity: l, unit: "litre", month, note: null, meterOk: null, meter: null };
+  }
+  // LPG: মোট kg, অথবা সিলিন্ডার সংখ্যা × সিলিন্ডারের মাপ; লিটার লেখা থাকলে সরাসরি
+  const litres = first([new RegExp(NUM + String.raw`[ \t]*(?:ltrs?|litres?|liters?|লিটার)\b`, "i")]);
+  if (litres) return { activity: fuel, quantity: litres, unit: "litre", month, note: "লিটারে লেখা পরিমাণ", meterOk: null, meter: null };
+  const totalKg = first([new RegExp(String.raw`(?:total|মোট)[^\d\n]{0,20}` + NUM + String.raw`[ \t]*kg`, "i")]);
+  let kg = totalKg;
+  if (kg === null) {
+    const size = first([new RegExp(NUM + String.raw`[ \t]*kg`, "i")]);
+    const count = first([new RegExp(NUM + String.raw`[ \t]*(?:cylinders?|সিলিন্ডার|pcs|টি)`, "i"), new RegExp(String.raw`(?:qty|quantity|পরিমাণ|সংখ্যা)[^\d\n]{0,15}` + NUM + String.raw`(?![ \t]*kg)`, "i")]);
+    if (size !== null) kg = size * (count ?? 1);
+  }
+  return { activity: fuel, quantity: kg === null ? null : Math.round((kg / LPG_KG_PER_LITRE) * 10) / 10, unit: "litre", month, kg,
+    note: kg === null ? null : `${kg.toLocaleString()} kg ÷ ${LPG_KG_PER_LITRE} kg/লিটার (DESNZ-এর দুই গুণক থেকে পাওয়া ঘনত্ব) = ${(Math.round((kg / LPG_KG_PER_LITRE) * 10) / 10).toLocaleString()} লিটার`, meterOk: null, meter: null };
+}

@@ -10,6 +10,7 @@ import { handleRpc, type LedgerEntry } from "../lib/mcp.ts";
 import { anomalies, evidenceScore, generator, intensity, buyerShare } from "../lib/insights.ts";
 import { demoMonths, BUYERS } from "../lib/demoModel.ts";
 import { ledgerToRows } from "../lib/passportRows.ts";
+import { detectActivity, parseFuel } from "../lib/parseBill.ts";
 import { PROJECTS, evaluate, optimize, annuity } from "../lib/planner.ts";
 import { buildPassport, verifyPassport, newPassportId } from "../lib/passport.ts";
 import { qrMatrix } from "../lib/qr.ts";
@@ -258,6 +259,21 @@ const R2 = E2.map((e) => ({ activity: e.payload.activity, quantity: e.payload.qu
   s.cases.push({ name: "কম বাজেটে দুই লক্ষ্য আলাদা প্রকল্প বাছে (কার্বন বনাম NPV)", pass: c5.ids.join() !== m5.ids.join() && c5.tYr >= m5.tYr && m5.npv >= c5.npv, detail: `কার্বন: ${c5.ids} · টাকা: ${m5.ids}` });
   const led = PROJECTS.find((p) => p.id === "led")!, el = evaluate([led], base);
   s.cases.push({ name: "NPV = বার্ষিক সাশ্রয় × annuity(আয়ু, ১০%) − বিনিয়োগ", pass: Math.abs(el.npv - (el.tkYr * annuity(led.lifeYears) - led.capexTk)) < 1 });
+}
+
+// ---------- ১১ক. গ্যাস / LPG / ডিজেল ----------
+{
+  const s = suite("fuels", "গ্যাস, LPG ও ডিজেলের বিল/রসিদ", "নথির ধরন নিজে চেনা আর সঠিক একক (m³, লিটার) বের করা; LPG kg → লিটার DESNZ-এর গুণক থেকে");
+  const gas = "SAMPLE GAS DISTRIBUTION CO.\nNATURAL GAS BILL (INDUSTRIAL)\nBilling Month : October 2026\nPrevious Reading : 1,284,560 m3\nPresent Reading : 1,324,930 m3\nGas Consumed: 40,370 m3";
+  const lpg = "SAMPLE LPG SUPPLIERS LTD.\nLPG CYLINDER SALES RECEIPT\nBilling Month : October 2026\nProduct : LPG Cylinder 45 kg\nQuantity : 8 cylinders\nTotal LPG: 360 kg";
+  const dsl = "SAMPLE FILLING STATION\nDIESEL (HSD) PURCHASE RECEIPT\nBilling Month : October 2026\nQuantity: 800 Litres\nRate (Tk 105 / L) Tk 84,000";
+  const g = parseFuel(gas, "natural_gas"), l = parseFuel(lpg, "lpg"), d = parseFuel(dsl, "diesel");
+  s.cases.push({ name: "গ্যাস বিল চেনা → 40,370 m³, মিটার মিলেছে", pass: detectActivity(gas) === "natural_gas" && g.quantity === 40370 && g.meter?.ok === true && g.month === "2026-10" });
+  s.cases.push({ name: "LPG রসিদ চেনা → 360 kg = 679.2 লিটার", pass: detectActivity(lpg) === "lpg" && l.quantity === 679.2, detail: `${l.quantity} L` });
+  s.cases.push({ name: "LPG: মোট kg না থাকলে সিলিন্ডার × মাপ", pass: parseFuel("LPG Cylinder 12 kg\nQuantity : 10 cylinders", "lpg").quantity === Math.round((120 / 0.53) * 10) / 10 });
+  s.cases.push({ name: "ডিজেল রসিদ চেনা → 800 লিটার", pass: detectActivity(dsl) === "diesel" && d.quantity === 800 });
+  s.cases.push({ name: "বিদ্যুৎ বিলকে গ্যাস ভাবে না", pass: detectActivity("SAMPLE POWER DISTRIBUTION CO.\nELECTRICITY BILL\nUnits Consumed: 112,970 kWh") === "electricity" });
+  s.cases.push({ name: "LPG ঘনত্ব DESNZ-এর দুই গুণকের অনুপাতের সাথে মেলে", pass: Math.abs(1.55713 / 2.93936 - 0.53) < 0.005 });
 }
 
 // ---------- ১১খ. পরে যুক্ত মূল বিল (append-only evidence) ----------
