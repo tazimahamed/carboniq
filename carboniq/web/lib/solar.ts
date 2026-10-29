@@ -23,14 +23,20 @@ export function polygonAreaM2(pts: { lat: number; lng: number }[]) {
   return Math.abs(a) / 2;
 }
 
+/** একটা কারখানার ছাদ সাধারণত কয়েক হাজার থেকে কয়েক দশ হাজার m² — এর চেয়ে বড় হলে সম্ভবত ভুল এলাকা আঁকা হয়েছে */
+export const MAX_ROOF_M2 = 60_000;
+
 export function pvEstimate(areaM2: number, ghiDaily: number, annualGridKwh: number) {
-  const kwp = areaM2 * SOLAR_ASSUME.usable * SOLAR_ASSUME.kwpPerM2;
+  const fitKwp = areaM2 * SOLAR_ASSUME.usable * SOLAR_ASSUME.kwpPerM2;   // ছাদে যতটা ধরে
   const yieldKwhPerKwp = ghiDaily * 365 * SOLAR_ASSUME.pr;     // kWh/kWp/বছর
+  // প্রস্তাবিত আকার: ছাদে যতটা ধরে আর নিজের দিনের লোডে যতটা কাজে লাগে — দুটোর ছোটটা (বাড়তি প্যানেলে টাকা নষ্ট)
+  const loadKwp = yieldKwhPerKwp ? (annualGridKwh * SOLAR_ASSUME.selfUseCap) / yieldKwhPerKwp : fitKwp;
+  const kwp = Math.min(fitKwp, loadKwp);
   const kwhYr = kwp * yieldKwhPerKwp;
   const used = Math.min(kwhYr, annualGridKwh * SOLAR_ASSUME.selfUseCap);
   const grid = FACTORS.find((f) => f.activity === "electricity")!.kgPerUnit;
   const tYr = (used * grid) / 1000, tkYr = used * ASSUME.gridTkPerKwh, capex = kwp * SOLAR_ASSUME.capexTkPerKwp;
-  return { kwp, yieldKwhPerKwp, kwhYr, used, capped: used < kwhYr, tYr, tkYr, capex, payback: tkYr ? capex / tkYr : Infinity, shareOfGrid: annualGridKwh ? used / annualGridKwh : 0 };
+  return { kwp, fitKwp, limitedByLoad: loadKwp < fitKwp, yieldKwhPerKwp, kwhYr, used, capped: used < kwhYr - 1e-6, tYr, tkYr, capex, payback: tkYr ? capex / tkYr : Infinity, shareOfGrid: annualGridKwh ? used / annualGridKwh : 0 };
 }
 
 /** NASA POWER climatology উত্তর থেকে বার্ষিক গড় (kWh/m²/দিন) আর মাসিক মান */
