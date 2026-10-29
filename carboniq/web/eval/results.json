@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T23:23:56.338Z",
+  "generated_at": "2026-10-29T20:54:11.080Z",
   "node": "v22.23.4",
   "suites": [
     {
@@ -244,7 +244,7 @@
           "pass": true
         },
         {
-          "name": "tools/list → ৪টা tool, প্রত্যেকটায় inputSchema",
+          "name": "tools/list → ৫টা tool, প্রত্যেকটায় inputSchema",
           "pass": true
         },
         {
@@ -541,10 +541,230 @@
       ],
       "passed": 7,
       "total": 7
+    },
+    {
+      "id": "evidence",
+      "title": "Evidence Score",
+      "what": "প্রমাণের মান ০-১০০: মাস বাদ, বিল, মিটার, ledger, ডুপ্লিকেট — ঠিকভাবে নম্বর কমে-বাড়ে",
+      "cases": [
+        {
+          "name": "পূর্ণ synthetic ডেটা (বিল ছাড়া) → ৬০",
+          "pass": true,
+          "detail": "60"
+        },
+        {
+          "name": "একটা মাস বাদ → score কমে, কোন মাস তা বলে",
+          "pass": true,
+          "detail": "59 · জুলাই 2026-এর বিদ্যুৎ বিল যোগ করুন"
+        },
+        {
+          "name": "একটা বিল যোগে পুরো ১৫ মিটার-নম্বর দেয় না (অন্যায্য বাড়তি নেই)",
+          "pass": true
+        },
+        {
+          "name": "সব বিল সংযুক্ত ও মিটার মিলেছে → ১০০",
+          "pass": true,
+          "detail": "100"
+        },
+        {
+          "name": "Ledger গরমিল → ২০ নম্বর কাটা",
+          "pass": true
+        },
+        {
+          "name": "ডুপ্লিকেট মাস → ১০ নম্বর কাটা",
+          "pass": true
+        }
+      ],
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "id": "insights",
+      "title": "প্রতি পিস · অস্বাভাবিকতা · জেনারেটর",
+      "what": "Synthetic demo-তে ইচ্ছাকৃত রাখা সমস্যা (আগস্টে বয়লার) ধরে কিনা, ভুল সতর্কবার্তা দেয় কিনা",
+      "cases": [
+        {
+          "name": "১২ মাসের প্রতি পিস হিসাব, ০.৫–০.৮ kg-এর মধ্যে",
+          "pass": true,
+          "detail": "0.652 0.639 0.618 0.626 0.646 0.662 0.689 0.699 0.668 0.699 0.650 0.650"
+        },
+        {
+          "name": "Buyer-দের ভাগ যোগ করলে মোট নির্গমন হয় (কিছু হারায় না)",
+          "pass": true,
+          "detail": "1976.26 vs 1976.26"
+        },
+        {
+          "name": "আগস্ট ২০২৬-এর গ্যাস অস্বাভাবিকতা ধরে",
+          "pass": true,
+          "detail": "2026-08 natural_gas 12.8%"
+        },
+        {
+          "name": "অন্য কোনো মাসে ভুল সতর্কবার্তা নেই",
+          "pass": true,
+          "detail": "1টা"
+        },
+        {
+          "name": "জেনারেটর: মোট লিটার আর সবচেয়ে বেশি মাস (মে)",
+          "pass": true,
+          "detail": "20900L, 2026-05"
+        },
+        {
+          "name": "জেনারেটর grid-এর চেয়ে দামি → বাড়তি খরচ ধনাত্মক",
+          "pass": true,
+          "detail": "৳1435830"
+        }
+      ],
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "id": "planner",
+      "title": "বিনিয়োগ পরিকল্পনা (optimizer)",
+      "what": "বাজেটের মধ্যে সেরা প্রকল্প-সমন্বয় — সব ১০২৪টা সমন্বয়ের সাথে মিলিয়ে সর্বোত্তম কিনা",
+      "cases": [
+        {
+          "name": "৳10 লাখ, লক্ষ্য কার্বন: সর্বোত্তম ও বাজেটের মধ্যে",
+          "pass": true,
+          "detail": "air,steam · 87t"
+        },
+        {
+          "name": "৳10 লাখ, লক্ষ্য টাকা: সর্বোত্তম ও বাজেটের মধ্যে",
+          "pass": true,
+          "detail": "air,steam · 87t"
+        },
+        {
+          "name": "৳50 লাখ, লক্ষ্য কার্বন: সর্বোত্তম ও বাজেটের মধ্যে",
+          "pass": true,
+          "detail": "led,air,hvac,econ,steam,meter · 266t"
+        },
+        {
+          "name": "৳50 লাখ, লক্ষ্য টাকা: সর্বোত্তম ও বাজেটের মধ্যে",
+          "pass": true,
+          "detail": "led,air,hvac,econ,steam,meter · 266t"
+        },
+        {
+          "name": "৳200 লাখ, লক্ষ্য কার্বন: সর্বোত্তম ও বাজেটের মধ্যে",
+          "pass": true,
+          "detail": "led,air,vfd,solar,econ,steam,meter · 565t"
+        },
+        {
+          "name": "৳200 লাখ, লক্ষ্য টাকা: সর্বোত্তম ও বাজেটের মধ্যে",
+          "pass": true,
+          "detail": "led,air,solar,econ,steam,ips,meter · 542t"
+        },
+        {
+          "name": "দুই প্রকল্প একসাথে ≤ আলাদা যোগফল (দ্বিগুণ গোনা নেই)",
+          "pass": true
+        }
+      ],
+      "passed": 7,
+      "total": 7
+    },
+    {
+      "id": "passport",
+      "title": "Carbon Passport ও QR",
+      "what": "Passport তৈরি, বদলানো/বাতিল ধরা পড়ে কিনা, আর QR আসলেই scan হয় কিনা (OpenCV দিয়ে পড়ে)",
+      "cases": [
+        {
+          "name": "নতুন passport → যাচাই সফল",
+          "pass": true,
+          "detail": "0.6728 kg/পিস, 26.91 t"
+        },
+        {
+          "name": "order_tco2e = পিস × kg/পিস",
+          "pass": true
+        },
+        {
+          "name": "Passport-এর সংখ্যা বদলালে → ব্যর্থ",
+          "pass": true
+        },
+        {
+          "name": "পেছনের ledger বদলালে → ব্যর্থ",
+          "pass": true
+        },
+        {
+          "name": "Factory বাতিল করলে → ব্যর্থ",
+          "pass": true
+        },
+        {
+          "name": "Passport id: ৮ অক্ষর, ভুল-পড়া অক্ষর (0/O/1/I) নেই",
+          "pass": true
+        },
+        {
+          "name": "QR scan হয়: \"https://carboniq-lake.vercel.app…\"",
+          "pass": true,
+          "detail": "https://carboniq-lake.vercel.app/p/K7Q2M"
+        },
+        {
+          "name": "QR scan হয়: \"CarbonIQ BD — বাংলা ১২৩…\"",
+          "pass": true,
+          "detail": "CarbonIQ BD — বাংলা ১২৩"
+        }
+      ],
+      "passed": 8,
+      "total": 8
+    },
+    {
+      "id": "copilot2",
+      "title": "Copilot: নতুন প্রশ্ন (MCP get_insights)",
+      "what": "প্রতি পিস, Evidence Score, সমস্যা — সঠিক tool আর সংখ্যা ডেটা থেকে",
+      "cases": [
+        {
+          "name": "প্রতি পিসে কত?",
+          "pass": true,
+          "detail": "intensity"
+        },
+        {
+          "name": "Evidence Score কত?",
+          "pass": true,
+          "detail": "evidence"
+        },
+        {
+          "name": "কোনো সমস্যা আছে?",
+          "pass": true,
+          "detail": "alerts"
+        },
+        {
+          "name": "জেনারেটরে কত খরচ হলো",
+          "pass": true,
+          "detail": "alerts"
+        },
+        {
+          "name": "per piece emission",
+          "pass": true,
+          "detail": "intensity"
+        },
+        {
+          "name": "ডেটা কতটা বিশ্বাসযোগ্য",
+          "pass": true,
+          "detail": "evidence"
+        },
+        {
+          "name": "get_insights → score, kg/পিস, অস্বাভাবিকতা, জেনারেটর",
+          "pass": true
+        },
+        {
+          "name": "উত্তরে বানানো সংখ্যা নেই: প্রতি পিসে কত?",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "উত্তরে বানানো সংখ্যা নেই: Evidence Score কত?",
+          "pass": true,
+          "detail": "refusal"
+        },
+        {
+          "name": "উত্তরে বানানো সংখ্যা নেই: কোনো সমস্যা আছে?",
+          "pass": true,
+          "detail": "ok"
+        }
+      ],
+      "passed": 10,
+      "total": 10
     }
   ],
   "summary": {
-    "passed": 96,
-    "total": 96
+    "passed": 133,
+    "total": 133
   }
 }

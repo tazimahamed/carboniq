@@ -1,6 +1,6 @@
 // MCP endpoint: POST /api/mcp (Streamable HTTP, stateless, JSON উত্তর)
 import { handleRpc, SERVER_INFO, TOOLS } from "@/lib/mcp";
-import { loadLedger } from "@/lib/ledgerData";
+import { loadLedger, loadProduction } from "@/lib/ledgerData";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   }
   const batch = Array.isArray(body);
   const msgs = batch ? (body as any[]) : [body];
-  const out = (await Promise.all(msgs.map((m) => handleRpc(m, loadLedger)))).filter(Boolean);
+  const out = (await Promise.all(msgs.map((m) => handleRpc(m, loadLedger, loadProduction)))).filter(Boolean);
   if (!out.length) return new Response(null, { status: 202, headers: CORS }); // শুধু notification
   return Response.json(batch ? out : out[0], { headers: CORS });
 }

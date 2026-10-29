@@ -13,7 +13,7 @@ type Msg = {
   template?: string;
 };
 
-const SUGGEST = ["মোট নির্গমন কত?", "কোন মাসে সবচেয়ে বেশি?", "নভেম্বর ২০২৬-এর বিদ্যুৎ কীভাবে হিসাব হলো?", "মে মাসে কেন বাড়ল?", "Ledger কি অক্ষত?", "কোন গুণক ব্যবহার হয়েছে?", "Scope 1 মানে কী?"];
+const SUGGEST = ["মোট নির্গমন কত?", "প্রতি পিসে কত?", "কোনো সমস্যা আছে?", "Evidence Score কত?", "কোন মাসে সবচেয়ে বেশি?", "মে মাসে কেন বাড়ল?", "Ledger কি অক্ষত?", "কোন গুণক ব্যবহার হয়েছে?"];
 
 async function callTool(c: ToolCall): Promise<any> {
   const j = await fetch("/api/mcp", {
@@ -48,6 +48,37 @@ export default function Copilot() {
   const [ai, setAi] = useState<"off" | "loading" | "on" | "unsupported" | "failed">("off");
   const [aiProgress, setAiProgress] = useState({ text: "", pct: 0 });
   const [showTemplate, setShowTemplate] = useState<number | null>(null);
+  // ---- বাংলা voice: browser-এর নিজস্ব speech (কোনো API খরচ নেই) ----
+  const [listening, setListening] = useState(false);
+  const [speak, setSpeak] = useState(false);
+  const [voiceOk, setVoiceOk] = useState({ mic: false, tts: false });
+  const recRef = useRef<any>(null);
+  useEffect(() => {
+    const w = window as any;
+    setVoiceOk({ mic: !!(w.SpeechRecognition || w.webkitSpeechRecognition), tts: "speechSynthesis" in w });
+  }, []);
+  function listen() {
+    const w = window as any, SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening) { recRef.current?.stop(); return; }
+    const rec = new SR();
+    rec.lang = "bn-BD"; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.onresult = (e: any) => {
+      const t = Array.from(e.results as ArrayLike<any>).map((r: any) => r[0].transcript).join("");
+      setInput(t);
+      if (e.results[e.results.length - 1].isFinal) { rec.stop(); ask(t); }
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recRef.current = rec; setListening(true); rec.start();
+  }
+  function say(text: string) {
+    if (!speak || !("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(text.replace(/\*\*/g, "").replace(/[•✓⚠]/g, "").slice(0, 600));
+    const bn = window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith("bn"));
+    u.lang = "bn-BD"; if (bn) u.voice = bn; u.rate = 1;
+    window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+  }
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!webgpuAvailable()) setAi("unsupported"); }, []); // সমর্থন না থাকলে বোতামই দেখায় না
@@ -84,6 +115,7 @@ export default function Copilot() {
         } catch { /* AI ব্যর্থ হলে template-ই থাকে */ }
       }
       setMsgs((m) => [...m, msg]);
+      say(msg.text);
     } catch {
       setMsgs((m) => [...m, { role: "bot", text: "দুঃখিত, server থেকে উত্তর আনা যায়নি। আবার চেষ্টা করুন।", mode: "template" }]);
     }
@@ -135,7 +167,7 @@ export default function Copilot() {
               <div className="pt-6">
                 <p className="text-center text-xs text-[var(--muted)]">যেমন জিজ্ঞেস করতে পারেন</p>
                 <div className="mx-auto mt-3 grid max-w-lg gap-2 sm:grid-cols-2">
-                  {[["মোট নির্গমন কত?", "১২ মাসের মোট, scope অনুযায়ী"], ["কোন মাসে সবচেয়ে বেশি?", "সর্বোচ্চ ও সর্বনিম্ন মাস"], ["মে মাসে কেন বাড়ল?", "আগের মাসের সাথে তুলনা"], ["Ledger কি অক্ষত?", "পুরো hash chain যাচাই"]].map(([q, h]) => (
+                  {[["মোট নির্গমন কত?", "১২ মাসের মোট, scope অনুযায়ী"], ["প্রতি পিসে কত?", "buyer-এর আসল প্রশ্ন"], ["কোনো সমস্যা আছে?", "অস্বাভাবিকতা ও জেনারেটর"], ["Evidence Score কত?", "ডেটা কতটা প্রমাণসহ"]].map(([q, h]) => (
                     <button key={q} onClick={() => ask(q)} className="rounded-xl border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--leaf)]/50 hover:bg-[var(--paper)]">
                       <span className="block text-sm font-semibold">{q}</span><span className="block text-xs text-[var(--muted)]">{h}</span>
                     </button>
@@ -154,7 +186,19 @@ export default function Copilot() {
             <div ref={end} />
           </div>
           <form onSubmit={(e) => { e.preventDefault(); ask(input); }} className="flex gap-2 border-t p-3">
-            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="প্রশ্ন লিখুন... যেমন: অক্টোবরে কত নির্গমন হয়েছে?"
+            {voiceOk.mic && (
+              <button type="button" onClick={listen} title="বাংলায় বলুন" aria-label="বাংলায় বলুন"
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border transition ${listening ? "animate-pulse border-red-300 bg-red-50 text-red-600" : "border-[var(--line)] hover:border-[var(--leaf)]"}`}>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+              </button>
+            )}
+            {voiceOk.tts && (
+              <button type="button" onClick={() => { setSpeak((v) => !v); window.speechSynthesis?.cancel(); }} title={speak ? "উত্তর শোনা বন্ধ" : "উত্তর শুনুন"} aria-pressed={speak}
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border transition ${speak ? "border-[var(--leaf)] bg-emerald-50 text-[var(--leaf)]" : "border-[var(--line)] text-[var(--muted)] hover:border-[var(--leaf)]"}`}>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z" />{speak ? <path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" /> : <path d="M17 9l4 6M21 9l-4 6" />}</svg>
+              </button>
+            )}
+            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? "শুনছি... বাংলায় বলুন" : "প্রশ্ন লিখুন বা mic চেপে বলুন..."}
               className="flex-1 rounded-full border border-black/10 px-4 py-2.5 text-sm outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-[var(--leaf)]/20" />
             <button disabled={busy || !input.trim()} className="btn-lime rounded-full px-5 text-sm font-bold transition disabled:opacity-30">পাঠান</button>
           </form>

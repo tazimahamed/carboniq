@@ -8,3 +8,9 @@ export async function loadLedger(): Promise<LedgerEntry[]> {
   if (error) throw error;
   return (data ?? []) as LedgerEntry[];
 }
+
+export async function loadProduction() {
+  const { data, error } = await db().from("production").select("period_month, buyer, pieces").eq("factory_id", DEMO_FACTORY_ID);
+  if (error) return []; // migration_2 না থাকলে খালি
+  return data ?? [];
+}

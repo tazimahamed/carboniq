@@ -7,6 +7,11 @@ import { GENESIS, makeHash, verifyChain } from "../lib/ledger.ts";
 import { parseBill } from "../lib/parseBill.ts";
 import { compose, route, toolsFor, verifyAi, type Answer } from "../lib/copilot.ts";
 import { handleRpc, type LedgerEntry } from "../lib/mcp.ts";
+import { anomalies, evidenceScore, generator, intensity, buyerShare } from "../lib/insights.ts";
+import { demoMonths, BUYERS } from "../lib/demoModel.ts";
+import { PROJECTS, evaluate, optimize } from "../lib/planner.ts";
+import { buildPassport, verifyPassport, newPassportId } from "../lib/passport.ts";
+import { qrMatrix } from "../lib/qr.ts";
 
 type Case = { name: string; pass: boolean; detail?: string };
 const suites: { id: string; title: string; what: string; cases: Case[] }[] = [];
@@ -123,7 +128,7 @@ const rpc = (m: any) => handleRpc(m, load) as Promise<any>;
   s.cases.push({ name: "initialize → protocolVersion + tools capability", pass: init.result?.protocolVersion === "2025-06-18" && !!init.result?.capabilities?.tools });
   s.cases.push({ name: "notification-এর উত্তর নেই", pass: (await handleRpc({ jsonrpc: "2.0", method: "notifications/initialized" } as any, load)) === null });
   const list = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-  s.cases.push({ name: "tools/list → ৪টা tool, প্রত্যেকটায় inputSchema", pass: list.result?.tools?.length === 4 && list.result.tools.every((t: any) => t.inputSchema?.type === "object") });
+  s.cases.push({ name: "tools/list → ৫টা tool, প্রত্যেকটায় inputSchema", pass: list.result?.tools?.length === 5 && list.result.tools.every((t: any) => t.inputSchema?.type === "object") });
   const em = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_emissions", arguments: {} } });
   const direct = rows.reduce((a, e) => a + e.payload.kg_co2e, 0) / 1000;
   s.cases.push({ name: "get_emissions মোট = ledger-এর যোগফল", pass: Math.abs(em.result.structuredContent.total - direct) < 0.01, detail: `${em.result.structuredContent.total} vs ${direct.toFixed(2)}` });
@@ -186,6 +191,102 @@ const rpc = (m: any) => handleRpc(m, load) as Promise<any>;
     const a = compose(it, res);
     const check = verifyAi(a.text, { ...a, key: [] }, res);
     s.cases.push({ name: q, pass: check.ok || check.reason === "refusal", detail: check.reason ?? "ok" });
+  }
+}
+
+// ---------- নতুন demo (উৎপাদনসহ) ----------
+const E2: LedgerEntry[] = []; const PROD: any[] = []; { let p = GENESIS;
+  for (const m of demoMonths()) {
+    for (const [a, q, u] of [["electricity", m.kwh, "kWh"], ["natural_gas", m.gas, "m3"], ["diesel", m.diesel, "litre"]] as [string, number, string][]) {
+      const payload: any = { record_id: `x${E2.length}`, period_month: `${m.month}-01`, ...calculate(a, q, u), evidence_level: "L1+L3" };
+      const h = makeHash(payload, p); E2.push({ id: E2.length + 1, payload, prev_hash: p, hash: h }); p = h;
+    }
+    let left = m.pieces; BUYERS.forEach((b, i) => { const pc = i === BUYERS.length - 1 ? left : Math.round(m.pieces * b.share); left -= pc; PROD.push({ period_month: `${m.month}-01`, buyer: b.name, pieces: pc }); });
+  }
+}
+const R2 = E2.map((e) => ({ activity: e.payload.activity, quantity: e.payload.quantity, period_month: e.payload.period_month, scope: e.payload.scope, kg_co2e: e.payload.kg_co2e, has_bill: false, meter_ok: null as boolean | null }));
+
+// ---------- ৯. Evidence Score ----------
+{
+  const s = suite("evidence", "Evidence Score", "প্রমাণের মান ০-১০০: মাস বাদ, বিল, মিটার, ledger, ডুপ্লিকেট — ঠিকভাবে নম্বর কমে-বাড়ে");
+  const base = evidenceScore(R2, true);
+  s.cases.push({ name: "পূর্ণ synthetic ডেটা (বিল ছাড়া) → ৬০", pass: base.score === 60, detail: `${base.score}` });
+  const miss = evidenceScore(R2.filter((r) => !(r.activity === "electricity" && r.period_month === "2026-07-01")), true);
+  s.cases.push({ name: "একটা মাস বাদ → score কমে, কোন মাস তা বলে", pass: miss.score < base.score && miss.actions[0].includes("জুলাই"), detail: `${miss.score} · ${miss.actions[0]}` });
+  const one = R2.map((r, i) => (i === 0 ? { ...r, has_bill: true, meter_ok: true } : r));
+  s.cases.push({ name: "একটা বিল যোগে পুরো ১৫ মিটার-নম্বর দেয় না (অন্যায্য বাড়তি নেই)", pass: evidenceScore(one, true).parts.find((p) => p.key === "meter")!.got <= 1 });
+  const all = R2.map((r) => ({ ...r, has_bill: true, meter_ok: true }));
+  s.cases.push({ name: "সব বিল সংযুক্ত ও মিটার মিলেছে → ১০০", pass: evidenceScore(all, true).score === 100, detail: `${evidenceScore(all, true).score}` });
+  s.cases.push({ name: "Ledger গরমিল → ২০ নম্বর কাটা", pass: evidenceScore(R2, false).score === base.score - 20 });
+  s.cases.push({ name: "ডুপ্লিকেট মাস → ১০ নম্বর কাটা", pass: evidenceScore([...R2, R2[0]], true).score === base.score - 10 });
+}
+
+// ---------- ১০. প্রতি পিস, buyer ভাগ, অস্বাভাবিকতা, জেনারেটর ----------
+{
+  const s = suite("insights", "প্রতি পিস · অস্বাভাবিকতা · জেনারেটর", "Synthetic demo-তে ইচ্ছাকৃত রাখা সমস্যা (আগস্টে বয়লার) ধরে কিনা, ভুল সতর্কবার্তা দেয় কিনা");
+  const it = intensity(R2, PROD);
+  s.cases.push({ name: "১২ মাসের প্রতি পিস হিসাব, ০.৫–০.৮ kg-এর মধ্যে", pass: it.length === 12 && it.every((x) => x.kgPerPiece > 0.5 && x.kgPerPiece < 0.8), detail: it.map((x) => x.kgPerPiece.toFixed(3)).join(" ") });
+  const sh = buyerShare(R2, PROD);
+  const sumT = sh.reduce((a, b) => a + b.tonnes, 0), totT = R2.reduce((a, r) => a + r.kg_co2e, 0) / 1000;
+  s.cases.push({ name: "Buyer-দের ভাগ যোগ করলে মোট নির্গমন হয় (কিছু হারায় না)", pass: Math.abs(sumT - totT) < 0.01, detail: `${sumT.toFixed(2)} vs ${totT.toFixed(2)}` });
+  const an = anomalies(R2, PROD);
+  s.cases.push({ name: "আগস্ট ২০২৬-এর গ্যাস অস্বাভাবিকতা ধরে", pass: an.some((a) => a.month === "2026-08" && a.activity === "natural_gas"), detail: an.map((a) => `${a.month} ${a.activity} ${(a.pct * 100).toFixed(1)}%`).join(", ") });
+  s.cases.push({ name: "অন্য কোনো মাসে ভুল সতর্কবার্তা নেই", pass: an.length === 1, detail: `${an.length}টা` });
+  const g = generator(R2);
+  s.cases.push({ name: "জেনারেটর: মোট লিটার আর সবচেয়ে বেশি মাস (মে)", pass: g.total.litres === 20900 && g.peak?.month === "2026-05", detail: `${g.total.litres}L, ${g.peak?.month}` });
+  s.cases.push({ name: "জেনারেটর grid-এর চেয়ে দামি → বাড়তি খরচ ধনাত্মক", pass: g.total.tkExtra > 0, detail: `৳${Math.round(g.total.tkExtra)}` });
+}
+
+// ---------- ১১. Planner ----------
+{
+  const s = suite("planner", "বিনিয়োগ পরিকল্পনা (optimizer)", "বাজেটের মধ্যে সেরা প্রকল্প-সমন্বয় — সব ১০২৪টা সমন্বয়ের সাথে মিলিয়ে সর্বোত্তম কিনা");
+  const ms = demoMonths(), base = { kwh: ms.reduce((a, m) => a + m.kwh, 0), gasM3: ms.reduce((a, m) => a + m.gas, 0), dieselL: ms.reduce((a, m) => a + m.diesel, 0) };
+  for (const budget of [1_000_000, 5_000_000, 20_000_000]) for (const goal of ["carbon", "money"] as const) {
+    const o = optimize(base, budget, goal); let better = 0;
+    for (let m = 0; m < 1 << PROJECTS.length; m++) { const r = evaluate(PROJECTS.filter((_, i) => m & (1 << i)), base); if (r.capex <= budget && (goal === "carbon" ? r.tYr : r.tkYr) > (goal === "carbon" ? o.tYr : o.tkYr) + 1e-9) better++; }
+    s.cases.push({ name: `৳${budget / 1e5} লাখ, লক্ষ্য ${goal === "carbon" ? "কার্বন" : "টাকা"}: সর্বোত্তম ও বাজেটের মধ্যে`, pass: better === 0 && o.capex <= budget, detail: `${o.ids.join(",")} · ${o.tYr.toFixed(0)}t` });
+  }
+  const two = evaluate(PROJECTS.filter((p) => p.id === "led" || p.id === "air"), base), a = evaluate(PROJECTS.filter((p) => p.id === "led"), base), b = evaluate(PROJECTS.filter((p) => p.id === "air"), base);
+  s.cases.push({ name: "দুই প্রকল্প একসাথে ≤ আলাদা যোগফল (দ্বিগুণ গোনা নেই)", pass: two.kwhSaved <= a.kwhSaved + b.kwhSaved + 1e-6 });
+}
+
+// ---------- ১২. Carbon Passport + QR ----------
+{
+  const s = suite("passport", "Carbon Passport ও QR", "Passport তৈরি, বদলানো/বাতিল ধরা পড়ে কিনা, আর QR আসলেই scan হয় কিনা (OpenCV দিয়ে পড়ে)");
+  const p = buildPassport(E2, PROD, { buyer: "Nordic Apparel", order_ref: "NA-1", pieces: 40000, from: "2026-07", to: "2026-09" });
+  const st = { payload: JSON.parse(JSON.stringify(p.payload)), ledger_hash: p.ledgerHash, hash: p.hash, revoked: false };
+  s.cases.push({ name: "নতুন passport → যাচাই সফল", pass: verifyPassport(st, E2).valid, detail: `${p.payload.kg_per_piece} kg/পিস, ${p.payload.order_tco2e} t` });
+  s.cases.push({ name: "order_tco2e = পিস × kg/পিস", pass: Math.abs(p.payload.order_tco2e - (40000 * p.payload.kg_per_piece) / 1000) < 0.02 });
+  const t1 = JSON.parse(JSON.stringify(st)); t1.payload.kg_per_piece = 0.3;
+  s.cases.push({ name: "Passport-এর সংখ্যা বদলালে → ব্যর্থ", pass: !verifyPassport(t1, E2).valid && !verifyPassport(t1, E2).hashOk });
+  const e3 = JSON.parse(JSON.stringify(E2)); e3[10].payload.kg_co2e = 1;
+  s.cases.push({ name: "পেছনের ledger বদলালে → ব্যর্থ", pass: !verifyPassport(st, e3).valid && !verifyPassport(st, e3).chainOk });
+  s.cases.push({ name: "Factory বাতিল করলে → ব্যর্থ", pass: !verifyPassport({ ...st, revoked: true }, E2).valid });
+  s.cases.push({ name: "Passport id: ৮ অক্ষর, ভুল-পড়া অক্ষর (0/O/1/I) নেই", pass: /^[2-9A-HJ-NP-Z]{8}$/.test(newPassportId()) });
+  for (const t of ["https://carboniq-lake.vercel.app/p/K7Q2M9XA", "CarbonIQ BD — বাংলা ১২৩"]) {
+    try {
+      const m = qrMatrix(t), q = 4, sc = 6, n = (m.length + 2 * q) * sc, px = Buffer.alloc(n * n, 255);
+      m.forEach((row, y) => row.forEach((v, x) => { if (v) for (let dy = 0; dy < sc; dy++) for (let dx = 0; dx < sc; dx++) px[((y + q) * sc + dy) * n + (x + q) * sc + dx] = 0; }));
+      const f = new URL(`./_qr_${t.length}.pgm`, import.meta.url);
+      writeFileSync(f, Buffer.concat([Buffer.from(`P5\n${n} ${n}\n255\n`), px]));
+      const out = execSync(`python3 -I -c "import cv2,sys; v,_,_=cv2.QRCodeDetector().detectAndDecode(cv2.imread(sys.argv[1],0)); sys.stdout.buffer.write(v.encode())" ${f.pathname}`).toString();
+      s.cases.push({ name: `QR scan হয়: "${t.slice(0, 32)}…"`, pass: out === t, detail: out.slice(0, 40) });
+    } catch (e) { s.cases.push({ name: `QR scan: "${t.slice(0, 20)}"`, pass: false, detail: "OpenCV পাওয়া যায়নি" }); }
+  }
+}
+
+// ---------- ১৩. Copilot নতুন প্রশ্ন + get_insights ----------
+{
+  const s = suite("copilot2", "Copilot: নতুন প্রশ্ন (MCP get_insights)", "প্রতি পিস, Evidence Score, সমস্যা — সঠিক tool আর সংখ্যা ডেটা থেকে");
+  for (const [q, kind] of [["প্রতি পিসে কত?", "intensity"], ["Evidence Score কত?", "evidence"], ["কোনো সমস্যা আছে?", "alerts"], ["জেনারেটরে কত খরচ হলো", "alerts"], ["per piece emission", "intensity"], ["ডেটা কতটা বিশ্বাসযোগ্য", "evidence"]] as const) {
+    const it: any = route(q); s.cases.push({ name: q, pass: it.kind === kind, detail: it.kind });
+  }
+  const r: any = await handleRpc({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_insights", arguments: {} } }, async () => E2, async () => PROD);
+  const sc = r.result?.structuredContent;
+  s.cases.push({ name: "get_insights → score, kg/পিস, অস্বাভাবিকতা, জেনারেটর", pass: sc?.evidence_score?.score === 60 && sc?.kg_co2e_per_piece > 0.5 && sc?.anomalies?.length === 1 && sc?.generator?.litres === 20900 });
+  for (const q of ["প্রতি পিসে কত?", "Evidence Score কত?", "কোনো সমস্যা আছে?"]) {
+    const it = route(q); const a = compose(it, [sc]); const v = verifyAi(a.text, { ...a, key: [] }, [sc]);
+    s.cases.push({ name: `উত্তরে বানানো সংখ্যা নেই: ${q}`, pass: v.ok || v.reason === "refusal", detail: v.reason ?? "ok" });
   }
 }
 

@@ -1,0 +1,68 @@
+// Decarbonization planner: বাজেটের মধ্যে কোন প্রকল্পগুলো একসাথে করলে সবচেয়ে বেশি কার্বন বা টাকা বাঁচে।
+// প্রকল্পের খরচ ও সাশ্রয় সাধারণ শিল্প-অনুমান (আনুমানিক) — আসল প্রকল্পে energy audit দিয়ে বদলাতে হবে।
+import { ASSUME } from "./assumptions";
+import { FACTORS } from "./factors";
+
+export type Project = {
+  id: string; name: string; what: string;
+  capexTk: number; lifeYears: number;
+  elecPct?: number;   // বিদ্যুৎ ব্যবহারের কত অংশ কমায় (০-১)
+  gasPct?: number;
+  dieselPct?: number;
+  solarKwhYr?: number; // নিজস্ব বিদ্যুৎ উৎপাদন (kWh/বছর)
+};
+
+export const PROJECTS: Project[] = [
+  { id: "led", name: "LED আলো", what: "পুরনো tube light বদলে LED", capexTk: 1_200_000, lifeYears: 8, elecPct: 0.05 },
+  { id: "air", name: "Compressed air লিক মেরামত", what: "লিক খুঁজে মেরামত, চাপ কমানো", capexTk: 300_000, lifeYears: 3, elecPct: 0.04 },
+  { id: "servo", name: "Sewing machine-এ servo motor", what: "clutch motor বদলে servo", capexTk: 2_500_000, lifeYears: 8, elecPct: 0.06 },
+  { id: "vfd", name: "Motor ও compressor-এ VFD", what: "চাহিদা অনুযায়ী গতি নিয়ন্ত্রণ", capexTk: 1_800_000, lifeYears: 10, elecPct: 0.05 },
+  { id: "hvac", name: "AC ও chiller setpoint", what: "তাপমাত্রা সেটিং আর রক্ষণাবেক্ষণ", capexTk: 400_000, lifeYears: 5, elecPct: 0.03 },
+  { id: "solar", name: "ছাদে solar (৩০০ kWp)", what: "নিজস্ব বিদ্যুৎ, দিনের লোড", capexTk: 13_500_000, lifeYears: 20, solarKwhYr: 300 * 1350 },
+  { id: "econ", name: "বয়লার economizer ও condensate ফেরত", what: "flue gas-এর তাপ আর গরম পানি ফেরত", capexTk: 1_500_000, lifeYears: 10, gasPct: 0.08 },
+  { id: "steam", name: "Steam line insulation ও trap", what: "তাপ নষ্ট আর লিক বন্ধ", capexTk: 600_000, lifeYears: 6, gasPct: 0.05 },
+  { id: "ips", name: "জরুরি লোডের জন্য battery backup", what: "ছোট load-shedding-এ জেনারেটর না চালানো", capexTk: 2_000_000, lifeYears: 7, dieselPct: 0.35 },
+  { id: "meter", name: "Sub-metering ও মাসিক নজরদারি", what: "কোন লাইনে কত খরচ, তা দেখে ব্যবস্থা", capexTk: 800_000, lifeYears: 8, elecPct: 0.02, gasPct: 0.02 },
+];
+
+export type Baseline = { kwh: number; gasM3: number; dieselL: number };
+
+const f = (a: string) => FACTORS.find((x) => x.activity === a)!.kgPerUnit;
+
+/** একসাথে বাছা প্রকল্পের মোট প্রভাব — শতাংশ সাশ্রয় গুণফলে যোগ হয় (দ্বিগুণ গোনা এড়াতে), solar বাকি grid বিদ্যুৎ থেকে কমে */
+export function evaluate(sel: Project[], base: Baseline) {
+  const keep = (k: "elecPct" | "gasPct" | "dieselPct") => sel.reduce((a, p) => a * (1 - (p[k] ?? 0)), 1);
+  const kwhAfterEff = base.kwh * keep("elecPct");
+  const solar = Math.min(kwhAfterEff * 0.6, sel.reduce((a, p) => a + (p.solarKwhYr ?? 0), 0)); // দিনের লোডের বেশি ধরি না
+  const kwhSaved = base.kwh - (kwhAfterEff - solar);
+  const gasSaved = base.gasM3 * (1 - keep("gasPct"));
+  const dieselSaved = base.dieselL * (1 - keep("dieselPct"));
+  const tkYr = kwhSaved * ASSUME.gridTkPerKwh + gasSaved * ASSUME.gasTkPerM3 + dieselSaved * ASSUME.dieselTkPerL;
+  const tYr = (kwhSaved * f("electricity") + gasSaved * f("natural_gas") + dieselSaved * f("diesel")) / 1000;
+  const capex = sel.reduce((a, p) => a + p.capexTk, 0);
+  return { capex, tkYr, tYr, kwhSaved, gasSaved, dieselSaved, paybackYears: tkYr > 0 ? capex / tkYr : Infinity };
+}
+
+/** প্রতিটা প্রকল্প একা: MACC-এর জন্য — প্রতি টন কমাতে বছরে নিট কত টাকা (ঋণাত্মক = লাভ) */
+export function macc(base: Baseline) {
+  return PROJECTS.map((p) => {
+    const e = evaluate([p], base);
+    const annualCost = p.capexTk / p.lifeYears - e.tkYr;
+    return { ...p, ...e, tkPerT: e.tYr > 0 ? annualCost / e.tYr : Infinity };
+  }).sort((a, b) => a.tkPerT - b.tkPerT);
+}
+
+/** সব সমন্বয় পরীক্ষা (২^১০ = ১০২৪) — বাজেটের মধ্যে সর্বোচ্চ লক্ষ্য; ছোট সমস্যা তাই নিশ্চিত সর্বোত্তম ফল */
+export function optimize(base: Baseline, budgetTk: number, goal: "carbon" | "money" = "carbon") {
+  let best = { mask: 0, score: -1, res: evaluate([], base) };
+  const n = PROJECTS.length;
+  for (let mask = 0; mask < 1 << n; mask++) {
+    const sel = PROJECTS.filter((_, i) => mask & (1 << i));
+    const r = evaluate(sel, base);
+    if (r.capex > budgetTk) continue;
+    // সমান হলে কম খরচেরটা
+    const score = (goal === "carbon" ? r.tYr : r.tkYr) - r.capex * 1e-12;
+    if (score > best.score) best = { mask, score, res: r };
+  }
+  return { ids: PROJECTS.filter((_, i) => best.mask & (1 << i)).map((p) => p.id), ...best.res };
+}

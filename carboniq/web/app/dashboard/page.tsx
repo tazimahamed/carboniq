@@ -5,6 +5,8 @@ import { useRecords, type Row } from "@/lib/useRecords";
 import { ACTIVITY_LABEL } from "@/lib/factors";
 import Shell from "@/components/Shell";
 import { CountUp } from "@/components/fx";
+import { anomalies, evidenceScore, generator, intensity } from "@/lib/insights";
+import { ASSUME_NOTE } from "@/lib/assumptions";
 
 const BN_MONTH = ["জানু", "ফেব্রু", "মার্চ", "এপ্রি", "মে", "জুন", "জুলা", "আগ", "সেপ্টে", "অক্টো", "নভে", "ডিসে"];
 const monthLabel = (m: string) => `${BN_MONTH[parseInt(m.slice(5, 7), 10) - 1]} ${m.slice(2, 4)}`;
@@ -47,7 +49,7 @@ function Ring({ parts }: { parts: { v: number; c: string }[] }) {
 }
 
 export default function Dashboard() {
-  const { rows, valid, error, loading, total, reload } = useRecords();
+  const { rows, production, valid, error, loading, total, reload } = useRecords();
   const [msg, setMsg] = useState("");
   const [hover, setHover] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
@@ -86,6 +88,15 @@ export default function Dashboard() {
   }, [rows]);
 
   const t = total(), s1 = total(1), s2 = total(2);
+  const ins = useMemo(() => ({
+    ev: evidenceScore(rows, valid),
+    it: intensity(rows, production),
+    an: anomalies(rows, production),
+    gen: generator(rows),
+  }), [rows, production, valid]);
+  const lastIt = ins.it.at(-1), prevIt = ins.it.at(-2);
+  const itChange = lastIt && prevIt ? ((lastIt.kgPerPiece - prevIt.kgPerPiece) / prevIt.kgPerPiece) * 100 : null;
+  const avgKgPiece = ins.it.length ? ins.it.reduce((a, x) => a + x.tonnes * 1000, 0) / ins.it.reduce((a, x) => a + x.pieces, 0) : null;
   const bills = rows.filter((r) => r.has_bill).length;
   const meterOk = rows.filter((r) => r.meter_ok).length;
   const shown: Row[] = filter === "all" ? rows : rows.filter((r) => r.activity === filter);
@@ -134,14 +145,99 @@ export default function Dashboard() {
               </div>
             ))}
             <div className="card p-5">
-              <p className="text-[13px] text-[var(--muted)]">সর্বশেষ মাস</p>
-              <p className="mt-1 text-[28px] font-extrabold tracking-tight">{d.last ? fmt(d.last.t) : "—"}<span className="ml-1 text-sm font-semibold text-[var(--muted)]">tCO₂e</span></p>
-              {d.change !== null && (
-                <p className={`mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${d.change > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}>
-                  {d.change > 0 ? "▲" : "▼"} {fmt(Math.abs(d.change))}% আগের মাসের তুলনায়
-                </p>
+              <p className="text-[13px] text-[var(--muted)]">প্রতি পিসে নির্গমন</p>
+              {avgKgPiece !== null ? (<>
+                <p className="mt-1 text-[28px] font-extrabold tracking-tight">{avgKgPiece.toFixed(3)}<span className="ml-1 text-sm font-semibold text-[var(--muted)]">kg CO₂e</span></p>
+                <div className="mt-2"><Spark values={ins.it.map((x) => x.kgPerPiece)} color="#0f3d2e" /></div>
+                {itChange !== null && (Math.abs(itChange) < 0.05
+                  ? <p className="mt-1 text-xs text-[var(--muted)]">শেষ মাসে অপরিবর্তিত</p>
+                  : <p className={`mt-1 text-xs font-semibold ${itChange > 0 ? "text-amber-700" : "text-emerald-700"}`}>{itChange > 0 ? "▲" : "▼"} {fmt(Math.abs(itChange))}% শেষ মাসে</p>)}
+              </>) : (
+                <p className="mt-3 text-sm text-[var(--muted)]">উৎপাদনের ডেটা যোগ করলে প্রতি পিসের হিসাব দেখাবে</p>
               )}
-              <p className="mt-3 text-xs text-[var(--muted)]">{d.last ? monthLabel(d.last.m) : ""} · সর্বোচ্চ {d.peak?.m ? monthLabel(d.peak.m) : "—"}</p>
+            </div>
+          </div>
+
+          {/* Evidence Score + smart সতর্কবার্তা */}
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+            <div className="card p-6">
+              <div className="flex items-start gap-5">
+                <div className="relative shrink-0">
+                  <svg viewBox="0 0 100 100" className="h-28 w-28 -rotate-90" aria-hidden>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--line)" strokeWidth="9" />
+                    <circle cx="50" cy="50" r="42" fill="none" stroke={ins.ev.score >= 85 ? "#1f8a5b" : ins.ev.score >= 65 ? "#4cc38a" : ins.ev.score >= 45 ? "#f0b443" : "#e07a5f"} strokeWidth="9" strokeLinecap="round"
+                      strokeDasharray={`${(ins.ev.score / 100) * 263.9} 263.9`} />
+                  </svg>
+                  <div className="absolute inset-0 grid place-items-center text-center">
+                    <div><p className="text-[28px] font-extrabold leading-none">{ins.ev.score}</p><p className="text-[10px] text-[var(--muted)]">/১০০</p></div>
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-bold">Evidence Score</h2>
+                  <p className="text-xs text-[var(--muted)]">ডেটা কতটা প্রমাণসহ · {ins.ev.grade}</p>
+                  <ul className="mt-3 space-y-1.5">
+                    {ins.ev.parts.map((p) => (
+                      <li key={p.key} className="text-xs" title={p.note}>
+                        <div className="flex justify-between gap-3"><span className="truncate">{p.label}</span><span className="shrink-0 font-semibold tabular-nums">{p.got}/{p.max}</span></div>
+                        <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-[var(--line)]"><div className="h-full rounded-full bg-[var(--leaf)]" style={{ width: `${(p.got / p.max) * 100}%` }} /></div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              {ins.ev.actions.length > 0 && (
+                <div className="mt-5 rounded-xl bg-[var(--paper)] p-3.5">
+                  <p className="text-xs font-bold">Score বাড়াতে</p>
+                  <ul className="mt-1.5 space-y-1 text-xs text-[var(--muted)]">{ins.ev.actions.map((a) => <li key={a}>• {a}</li>)}</ul>
+                </div>
+              )}
+              <p className="mt-3 text-[10px] text-[var(--muted)]">CarbonIQ-এর নিজস্ব মান-নির্দেশক, কোনো সরকারি সনদ নয়।</p>
+            </div>
+
+            <div className="card p-6">
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold">Smart সতর্কবার্তা</h2>
+                <span className="rounded-full bg-[var(--paper)] px-2 py-0.5 text-xs text-[var(--muted)]">{ins.an.length + (ins.gen.total.litres ? 1 : 0)}</span>
+              </div>
+              <p className="text-xs text-[var(--muted)]">প্রতিটা মাসকে বাকি মাসের উৎপাদন আর তাপমাত্রা দিয়ে শেখা model-এর সাথে তুলনা</p>
+              <div className="mt-4 space-y-3">
+                {ins.an.slice(0, 3).map((a) => (
+                  <div key={a.month + a.activity} className={`rounded-xl border p-4 ${a.severity === "high" ? "border-amber-300 bg-amber-50/70" : "border-amber-200 bg-amber-50/40"}`}>
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-400 text-sm font-bold text-white">!</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-amber-950">{a.title}</p>
+                        <p className="mt-0.5 text-xs text-amber-900/80">{a.detail}</p>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                          <span>আসল <b className="tabular-nums">{Math.round(a.actual).toLocaleString()}</b></span>
+                          <span>প্রত্যাশিত <b className="tabular-nums">{Math.round(a.expected).toLocaleString()}</b></span>
+                          <span className="font-semibold text-amber-900">আনুমানিক ক্ষতি ৳{Math.round(a.tkLoss).toLocaleString("en-IN")} · {a.extraT.toFixed(1)} টন বাড়তি</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {ins.gen.total.litres > 0 && (
+                  <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--ink)] text-[var(--lime)]">
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" /></svg>
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold">Load-shedding: জেনারেটরে বাড়তি ৳{Math.round(ins.gen.total.tkExtra / 100000 * 10) / 10} লাখ</p>
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">{ins.gen.total.litres.toLocaleString()} লিটার ডিজেল, grid-এর চেয়ে প্রতি kWh অনেক দামি · সবচেয়ে বেশি {ins.gen.peak ? monthLabel(ins.gen.peak.month) : ""}-এ</p>
+                        <div className="mt-2 flex h-8 items-end gap-1">
+                          {ins.gen.months.map((g) => (
+                            <div key={g.month} className="flex-1 rounded-t-sm bg-[var(--forest)]/70" style={{ height: `${(g.litres / (ins.gen.peak?.litres || 1)) * 100}%` }} title={`${monthLabel(g.month)}: ${g.litres} L`} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {ins.an.length === 0 && !ins.gen.total.litres && <p className="rounded-xl bg-[var(--paper)] p-4 text-sm text-[var(--muted)]">কোনো অস্বাভাবিকতা পাওয়া যায়নি।</p>}
+              </div>
+              <p className="mt-3 text-[10px] text-[var(--muted)]">{ASSUME_NOTE}। Demo ডেটা synthetic।</p>
             </div>
           </div>
 
@@ -218,36 +314,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* প্রমাণ + দ্রুত কাজ */}
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1.85fr_1fr]">
-            <div className="card p-6">
-              <div className="flex items-center gap-3">
-                <h2 className="font-bold">প্রমাণের অবস্থা</h2>
-                <span className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${valid === false ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-800"}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${valid === false ? "bg-red-500" : "bg-emerald-500"}`} />
-                  {loading ? "যাচাই হচ্ছে" : valid === null ? "যাচাই করা যায়নি" : valid ? "Ledger অক্ষত" : "Ledger-এ গরমিল"}
-                </span>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-4">
-                {[
-                  { k: "মানুষের নিশ্চিত (L1)", v: rows.length, of: rows.length },
-                  { k: "মূল বিল সংযুক্ত (L2)", v: bills, of: rows.length },
-                  { k: "মিটার রিডিং মিলেছে", v: meterOk, of: bills || 0 },
-                  { k: "Hash-সিল (L3)", v: rows.length, of: rows.length },
-                ].map((x) => (
-                  <div key={x.k} className="rounded-xl bg-[var(--paper)] p-4">
-                    <p className="text-[22px] font-extrabold tabular-nums">{x.v}<span className="text-sm font-semibold text-[var(--muted)]">/{x.of}</span></p>
-                    <p className="mt-0.5 text-xs text-[var(--muted)]">{x.k}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-                প্রতিটা record আগেরটার SHA-256 hash-এর সাথে জোড়া; এইমাত্র পুরো chain আবার হিসাব করে মেলানো হয়েছে। মূল বিল ছাড়া record-গুলো synthetic demo data।
-              </p>
-            </div>
+          {/* দ্রুত কাজ */}
+          <div className="mt-4">
             <div className="card p-6">
               <h2 className="font-bold">দ্রুত কাজ</h2>
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 grid gap-2 md:grid-cols-3">
                 {[
                   { href: "/upload", t: "নতুন বিল upload", s: "ছবি, HEIC বা PDF", d: "M12 4v12M6 10l6-6 6 6M4 20h16" },
                   { href: "/report", t: "Buyer report বানান", s: "উৎস ও hash-সহ PDF", d: "M6 2h9l5 5v15H6V2zM9 13h7M9 17h7" },

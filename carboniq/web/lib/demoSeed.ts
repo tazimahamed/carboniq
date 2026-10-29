@@ -4,8 +4,12 @@ import { calculate } from "./engine";
 import { GENESIS, makeHash } from "./ledger";
 import { db } from "./supabase";
 import { DEMO_FACTORY_ID, DEMO_ORG_ID } from "./demo";
+import { BUYERS, demoMonths } from "./demoModel";
 
-const SEASON = [0.85, 0.8, 0.85, 0.95, 1.1, 1.2, 1.25, 1.2, 1.15, 1.1, 1.05, 0.95]; // গরমে বিদ্যুৎ বেশি
+
+function isMissingTable(e: { code?: string; message?: string }) {
+  return e.code === "42P01" || e.code === "PGRST205" || /does not exist|could not find the table/i.test(e.message ?? "");
+}
 
 export async function clearDemo() {
   const supa = db();
@@ -17,9 +21,9 @@ export async function clearDemo() {
     for (const f of files ?? []) paths.push(`${DEMO_FACTORY_ID}/${m.name}/${f.name}`);
   }
   if (paths.length) await supa.storage.from("bills").remove(paths);
-  for (const t of ["ledger_entries", "activity_records", "documents"]) {
+  for (const t of ["passports", "production", "ledger_entries", "activity_records", "documents"]) {
     const { error } = await supa.from(t).delete().eq("factory_id", DEMO_FACTORY_ID);
-    if (error) throw error;
+    if (error && !isMissingTable(error)) throw error; // migration_2 না চালানো থাকলেও reset চলবে
   }
   return { bills_removed: paths.length };
 }
@@ -28,12 +32,18 @@ export async function seedDemo() {
   const supa = db();
   const now = new Date().toISOString();
   const items: { activity: string; quantity: number; unit: string; period: string }[] = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(Date.UTC(2025, 10 + i, 1));
-    const period = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
-    items.push({ activity: "electricity", quantity: Math.round(120000 * SEASON[i]), unit: "kWh", period });
-    items.push({ activity: "natural_gas", quantity: Math.round(45000 * (2 - SEASON[i])), unit: "m3", period });
-    if (i % 3 === 0) items.push({ activity: "diesel", quantity: 3200, unit: "litre", period });
+  const production: { org_id: string; factory_id: string; period_month: string; buyer: string; pieces: number }[] = [];
+  for (const m of demoMonths()) {
+    const period = `${m.month}-01`;
+    items.push({ activity: "electricity", quantity: m.kwh, unit: "kWh", period });
+    items.push({ activity: "natural_gas", quantity: m.gas, unit: "m3", period });
+    items.push({ activity: "diesel", quantity: m.diesel, unit: "litre", period });
+    let left = m.pieces;
+    BUYERS.forEach((b, i) => {
+      const p = i === BUYERS.length - 1 ? left : Math.round(m.pieces * b.share);
+      left -= p;
+      production.push({ org_id: DEMO_ORG_ID, factory_id: DEMO_FACTORY_ID, period_month: period, buyer: b.name, pieces: p });
+    });
   }
   const records = items.map((it) => ({
     id: randomUUID(), org_id: DEMO_ORG_ID, factory_id: DEMO_FACTORY_ID,
@@ -52,5 +62,7 @@ export async function seedDemo() {
   if (e1) throw e1;
   const { error: e2 } = await supa.from("ledger_entries").insert(ledger);
   if (e2) throw e2;
+  const { error: e3 } = await supa.from("production").insert(production);
+  if (e3 && !isMissingTable(e3)) throw e3;
   return { months: 12, records: records.length };
 }

@@ -27,6 +27,9 @@ export type Intent =
   | { kind: "verify" }
   | { kind: "factors"; activity?: string }
   | { kind: "scope" }
+  | { kind: "evidence" }
+  | { kind: "intensity" }
+  | { kind: "alerts" }
   | { kind: "help" };
 
 /** প্রশ্ন থেকে মাস বের করা: "নভেম্বর ২০২৬", "2026-11", "Nov 2026"। বছর না দিলে সাম্প্রতিক বছর ধরা হয় */
@@ -45,6 +48,9 @@ export function route(question: string): Intent {
   const activity = ACTIVITY.find(([re]) => re.test(q))?.[1];
   const year = q.match(/20\d{2}/)?.[0];
 
+  if (/evidence|score|স্কোর|বিশ্বাসযোগ্য|মান কেমন|কতটা প্রমাণ/.test(q)) return { kind: "evidence" };
+  if (/পিস|piece|per unit|প্রতি একক|intensity/.test(q)) return { kind: "intensity" };
+  if (/অস্বাভাবিক|সমস্যা|anomal|alert|সতর্ক|জেনারেটর|generator|load.?shedding|লোডশেডিং|ক্ষতি|নষ্ট|অপচয়/.test(q)) return { kind: "alerts" };
   if (/ledger|লেজার|hash|হ্যাশ|বদলানো|বদলেছে|tamper|অক্ষত|নিরাপদ|বিশ্বাস|যাচাই|verify/.test(q)) return { kind: "verify" };
   if (/গুণক|factor|উৎস|source|\bdesnz\b|\bember\b|license|লাইসেন্স/.test(q)) return { kind: "factors", activity };
   if (/scope|স্কোপ/.test(q) && /কী|কি|মানে|what|mean|পার্থক্য|difference/.test(q)) return { kind: "scope" };
@@ -69,6 +75,7 @@ export function toolsFor(intent: Intent): ToolCall[] {
     case "explain": return intent.month ? [{ name: "explain_calculation", arguments: { month: intent.month, ...(intent.activity ? { activity: intent.activity } : {}) } }] : [];
     case "verify": return [{ name: "verify_ledger", arguments: {} }];
     case "factors": return [{ name: "get_factors", arguments: {} }];
+    case "evidence": case "intensity": case "alerts": return [{ name: "get_insights", arguments: {} }];
     default: return [];
   }
 }
@@ -138,6 +145,26 @@ export function compose(intent: Intent, results: any[]): Answer {
         text: "ব্যবহৃত গুণক:\n" + fs.map((f) => `• ${ACT_BN[f.activity] ?? f.activity}: ${toBn(f.kgPerUnit)} kg CO₂e/${f.unit} (scope ${toBn(f.scope)}) — ${f.source}, ${f.license}`).join("\n"),
         sources: ["get_factors"],
       };
+    }
+    case "evidence": {
+      const e = r.evidence_score;
+      return {
+        text: `Evidence Score **${toBn(e.score)}/১০০** (${e.grade})।\n` + e.parts.map((p: any) => `• ${p.part}: ${toBn(p.got)}/${toBn(p.max)}`).join("\n") +
+          (e.improve?.length ? `\n\nবাড়াতে: ${e.improve[0]}` : "") + "\n\nএটা CarbonIQ-এর নিজস্ব মান-নির্দেশক, কোনো সরকারি সনদ নয়।",
+        sources: ["get_insights"], key: [toBn(e.score)],
+      };
+    }
+    case "intensity": {
+      if (r.kg_co2e_per_piece === null) return { text: "উৎপাদনের ডেটা নেই, তাই প্রতি পিসের হিসাব করা যাচ্ছে না।", sources: ["get_insights"] };
+      const ms = r.by_month_kg_per_piece as { month: string; kg_per_piece: number }[];
+      const hi = ms.reduce((a, b) => (b.kg_per_piece > a.kg_per_piece ? b : a)), lo = ms.reduce((a, b) => (b.kg_per_piece < a.kg_per_piece ? b : a));
+      return { text: `গড়ে প্রতি পিসে **${toBn(r.kg_co2e_per_piece.toFixed(3))} কেজি CO₂e**।\nসবচেয়ে বেশি ${monthBn(hi.month)}-এ (${toBn(hi.kg_per_piece.toFixed(3))}), সবচেয়ে কম ${monthBn(lo.month)}-এ (${toBn(lo.kg_per_piece.toFixed(3))})।\n\nকারখানার মাসিক নির্গমন ওই মাসের উৎপাদিত পিস দিয়ে ভাগ করে হিসাব। Buyer-ভিত্তিক passport Passport পাতা থেকে বানানো যায়।`, sources: ["get_insights"], key: [toBn(r.kg_co2e_per_piece.toFixed(3))] };
+    }
+    case "alerts": {
+      const lines = (r.anomalies as any[]).slice(0, 3).map((a) => `• ${monthBn(a.month)}: ${ACT_BN[a.activity] ?? a.activity} প্রত্যাশার চেয়ে ${toBn(a.pct_above_expected)}% বেশি — আনুমানিক ক্ষতি ৳${toBn(a.est_loss_tk.toLocaleString("en-IN"))}। ${a.hint}`);
+      const g = r.generator;
+      if (g?.litres) lines.push(`• Load-shedding: জেনারেটরে ${toBn(g.litres.toLocaleString())} লিটার ডিজেল, grid-এর তুলনায় আনুমানিক বাড়তি ৳${toBn(Math.round(g.est_extra_cost_tk / 1000).toLocaleString("en-IN"))} হাজার।`);
+      return { text: lines.length ? `যা চোখে পড়েছে:\n${lines.join("\n")}\n\n(${r.assumptions})` : "কোনো অস্বাভাবিকতা পাওয়া যায়নি।", sources: ["get_insights"] };
     }
     case "scope":
       return { text: "**Scope 1** = factory-তে নিজে জ্বালানি পোড়ানো থেকে সরাসরি নির্গমন: গ্যাস বয়লার, ডিজেল জেনারেটর, LPG।\n**Scope 2** = কেনা বিদ্যুৎ থেকে পরোক্ষ নির্গমন: grid-এর বিদ্যুৎ যে power plant-এ তৈরি হয় সেখানকার নির্গমন।\n**Scope 3** = supplier, পরিবহন, বর্জ্য ইত্যাদি (CarbonIQ-এর roadmap-এ আছে)।\n\nসূত্র: GHG Protocol Corporate Standard।", sources: [] };

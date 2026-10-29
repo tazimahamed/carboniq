@@ -2,9 +2,12 @@
 // কোনো বাইরের package নেই। ডেটা আসে বাইরে থেকে (LedgerSource), তাই এই ফাইল আলাদাভাবে পরীক্ষা করা যায়।
 import { FACTORS } from "./factors";
 import { verifyChain } from "./ledger";
+import { anomalies, evidenceScore, generator, intensity, type InProd } from "./insights";
+import { ledgerToRows } from "./passportRows";
 
 export type LedgerEntry = { id: number | string; payload: Record<string, any>; prev_hash: string; hash: string };
 export type LedgerSource = () => Promise<LedgerEntry[]>;
+export type ProductionSource = () => Promise<InProd[]>;
 
 export const SERVER_INFO = { name: "carboniq-bd", title: "CarbonIQ BD", version: "0.2.0" };
 const SUPPORTED = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -46,6 +49,13 @@ export const TOOLS = [
     name: "verify_ledger",
     title: "Ledger যাচাই",
     description: "পুরো SHA-256 hash chain আবার হিসাব করে দেখে কোনো record পরে বদলানো হয়েছে কিনা।",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: "get_insights",
+    title: "বুদ্ধিমত্তা ও প্রমাণের মান",
+    description: "Evidence Score (০-১০০, CarbonIQ-এর নিজস্ব মান-নির্দেশক), প্রতি পিস নির্গমন (kg CO2e), প্রত্যাশার চেয়ে অস্বাভাবিক বেশি ব্যবহারের মাস (৳ ক্ষতিসহ, আনুমানিক) আর ডিজেল জেনারেটরের বাড়তি খরচ।",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -128,7 +138,7 @@ const content = (data: any, isError = false) => ({
 });
 
 /** একটা JSON-RPC message → উত্তর (notification হলে null) */
-export async function handleRpc(msg: RpcReq, load: LedgerSource): Promise<object | null> {
+export async function handleRpc(msg: RpcReq, load: LedgerSource, loadProd: ProductionSource = async () => []): Promise<object | null> {
   const isNotification = msg.id === undefined;
   if (msg?.jsonrpc !== "2.0" || typeof msg.method !== "string") return isNotification ? null : fail(msg?.id, -32600, "Invalid Request");
   if (isNotification) return null; // যেমন notifications/initialized
@@ -155,6 +165,19 @@ export async function handleRpc(msg: RpcReq, load: LedgerSource): Promise<object
         const rows = await load();
         if (name === "get_emissions") return ok(msg.id, content(getEmissions(rows, args)));
         if (name === "explain_calculation") return ok(msg.id, content(explain(rows, args)));
+        if (name === "get_insights") {
+          const rr = ledgerToRows(rows), prod = await loadProd(), valid = verifyChain(rows);
+          const ev = evidenceScore(rr, valid), it = intensity(rr, prod), g = generator(rr);
+          const kgpp = it.length ? it.reduce((a, x) => a + x.tonnes * 1000, 0) / it.reduce((a, x) => a + x.pieces, 0) : null;
+          return ok(msg.id, content({
+            evidence_score: { score: ev.score, grade: ev.grade, parts: ev.parts.map((p) => ({ part: p.label, got: p.got, max: p.max })), improve: ev.actions, note: "CarbonIQ-এর নিজস্ব মান-নির্দেশক, সরকারি সনদ নয়" },
+            kg_co2e_per_piece: kgpp === null ? null : Math.round(kgpp * 10000) / 10000,
+            by_month_kg_per_piece: it.map((x) => ({ month: x.month, pieces: x.pieces, kg_per_piece: Math.round(x.kgPerPiece * 10000) / 10000 })),
+            anomalies: anomalies(rr, prod).map((a) => ({ month: a.month, activity: a.activity, pct_above_expected: Math.round(a.pct * 1000) / 10, actual: a.actual, expected: Math.round(a.expected), est_loss_tk: Math.round(a.tkLoss), extra_tco2e: Math.round(a.extraT * 100) / 100, hint: a.detail })),
+            generator: { litres: g.total.litres, est_extra_cost_tk: Math.round(g.total.tkExtra), extra_tco2e_vs_grid: Math.round(g.total.tExtra * 100) / 100, peak_month: g.peak?.month ?? null },
+            assumptions: "আনুমানিক দাম: বিদ্যুৎ ৳১১/kWh, গ্যাস ৳৩০/m³, ডিজেল ৳১০৫/লিটার",
+          }));
+        }
         if (name === "verify_ledger") {
           return ok(msg.id, content({ entries: rows.length, valid: verifyChain(rows), last_hash: rows.at(-1)?.hash ?? null, algorithm: "SHA-256 hash chain, append-only" }));
         }

@@ -4,12 +4,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const LINKS = [
-  { href: "/upload", label: "বিল upload" },
+  { href: "/upload", label: "Upload" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/report", label: "Report" },
+  { href: "/passports", label: "Passport" },
+  { href: "/planner", label: "Planner" },
   { href: "/copilot", label: "Copilot" },
   { href: "/developers", label: "API · MCP" },
-  { href: "/evaluation", label: "Evaluation" },
+  { href: "/evaluation", label: "Eval" },
 ];
 
 export function LogoMark({ className = "h-8 w-8" }: { className?: string }) {

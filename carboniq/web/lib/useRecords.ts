@@ -7,7 +7,10 @@ export type Row = {
   record_id: string; evidence_level: string; has_bill: boolean; meter_ok: boolean | null;
 };
 
+export type Prod = { period_month: string; buyer: string; pieces: number };
+
 export function useRecords() {
+  const [production, setProduction] = useState<Prod[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [valid, setValid] = useState<boolean | null>(null);
   const [error, setError] = useState("");
@@ -17,12 +20,16 @@ export function useRecords() {
     setLoading(true); setError("");
     const r = await fetch("/api/records", { cache: "no-store" }).then((x) => x.json());
     if (r.error) setError(r.error); else setRows(r.records);
-    const v = await fetch("/api/ledger/verify", { cache: "no-store" }).then((x) => x.json());
+    const [v, p] = await Promise.all([
+      fetch("/api/ledger/verify", { cache: "no-store" }).then((x) => x.json()),
+      fetch("/api/production", { cache: "no-store" }).then((x) => x.json()).catch(() => ({ production: [] })),
+    ]);
+    setProduction(p.production ?? []);
     setValid(v.error ? null : v.valid);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
 
   const total = (s?: number) => rows.filter((r) => !s || r.scope === s).reduce((a, r) => a + r.kg_co2e, 0) / 1000;
-  return { rows, valid, error, loading, total, reload: load };
+  return { rows, production, valid, error, loading, total, reload: load };
 }

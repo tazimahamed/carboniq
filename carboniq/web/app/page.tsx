@@ -144,7 +144,7 @@ export default function Home() {
           <div className="mx-auto grid max-w-6xl grid-cols-2 divide-white/10 px-4 md:grid-cols-4 md:divide-x">
             {[
               { v: 14000, s: "+", l: "উৎপাদন কেন্দ্র Higg FEM ব্যবহার করে" },
-              { v: 96, s: "/96", l: "স্বয়ংক্রিয় পরীক্ষা পাস" },
+              { v: 133, s: "/133", l: "স্বয়ংক্রিয় পরীক্ষা পাস" },
               { v: 256, s: "-bit", l: "SHA hash chain-এ সিল" },
               { v: 0, s: " ৳", l: "AI API খরচ — সব device-এ চলে" },
             ].map((x) => (
@@ -165,6 +165,35 @@ export default function Home() {
               .map((t) => <span key={`${k}-${t}`} className="flex items-center gap-12">{t}<span className="text-[var(--leaf)]">✦</span></span>))}
         </div>
       </div>
+
+      {/* পাঁচ ধাপের platform */}
+      <section className="border-b border-[var(--line)] bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-24">
+          <Reveal>
+            <p className="text-sm font-semibold text-[var(--leaf)]">একটা পূর্ণ platform</p>
+            <h2 className="mt-2 max-w-3xl text-[34px] font-bold leading-tight tracking-tight sm:text-[42px]">মাপা থেকে buyer-এর হাতে প্রমাণ — পাঁচ ধাপে</h2>
+          </Reveal>
+          <div className="mt-12 grid gap-px overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--line)] md:grid-cols-5">
+            {[
+              { k: "Measure", t: "মাপা", d: "বিল OCR, উৎপাদন, scope ১ ও ২, প্রতি পিস নির্গমন", href: "/upload", i: P.scan },
+              { k: "Verify", t: "যাচাই", d: "মিটার রিডিং, hash-ledger আর ০-১০০ Evidence Score", href: "/dashboard", i: P.lock },
+              { k: "Detect", t: "ধরা", d: "প্রত্যাশার চেয়ে বেশি ব্যবহার, load-shedding-এ জেনারেটরের বাড়তি খরচ", href: "/dashboard", i: P.meter },
+              { k: "Optimize", t: "কমানো", d: "বাজেট দিলে সেরা প্রকল্প-সমন্বয়, ৳ সাশ্রয় আর payback", href: "/planner", i: P.sigma },
+              { k: "Share", t: "দেওয়া", d: "Order-ভিত্তিক Carbon Passport, QR দিয়ে buyer নিজে যাচাই করে", href: "/passports", i: P.chain },
+            ].map((x, i) => (
+              <Reveal key={x.k} delay={i * 70}>
+                <Link href={x.href} className="group flex h-full flex-col bg-white p-6 transition-colors hover:bg-[var(--paper)]">
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--ink)] text-[var(--lime)]"><Ico d={x.i} /></span>
+                  <p className="mt-5 text-xs font-bold text-[var(--leaf)]">{x.k}</p>
+                  <h3 className="mt-0.5 text-[20px] font-bold">{x.t}</h3>
+                  <p className="mt-2 flex-1 text-[14px] leading-relaxed text-[var(--muted)]">{x.d}</p>
+                  <span className="mt-4 text-sm font-semibold text-[var(--forest)] transition group-hover:translate-x-1">দেখুন →</span>
+                </Link>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* কীভাবে কাজ করে */}
       <section className="mx-auto max-w-6xl px-4 py-28">
@@ -224,9 +253,9 @@ export default function Home() {
           <Reveal>
             <p className="text-sm font-semibold text-[var(--leaf)]">Developers ও buyer-এর জন্য</p>
             <h2 className="mt-2 text-[34px] font-bold leading-tight tracking-tight sm:text-[40px]">Buyer-এর AI agent সরাসরি প্রমাণ পড়তে পারে</h2>
-            <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-[var(--muted)]">নিজস্ব Model Context Protocol server — ৪টা read-only tool। Buyer-এর সফটওয়্যার বা AI factory-র অনুমতিতে নির্গমন, তার হিসাব আর বিলের hash সরাসরি যাচাই করতে পারে।</p>
+            <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-[var(--muted)]">নিজস্ব Model Context Protocol server — ৫টা read-only tool। Buyer-এর সফটওয়্যার বা AI factory-র অনুমতিতে নির্গমন, তার হিসাব আর বিলের hash সরাসরি যাচাই করতে পারে।</p>
             <div className="mt-7 flex flex-wrap gap-2">
-              {["get_emissions", "explain_calculation", "verify_ledger", "get_factors"].map((t) => (
+              {["get_emissions", "explain_calculation", "verify_ledger", "get_insights", "get_factors"].map((t) => (
                 <span key={t} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 font-mono text-[13px] text-[var(--forest)]">{t}</span>
               ))}
             </div>
