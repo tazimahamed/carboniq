@@ -39,16 +39,27 @@ export default function Upload() {
     setResult(null); setError(""); setConfirmed(false); setOcrText(""); setMeter(null); setCandidates([]); setOcrQty(null);
     setPhase("reading"); setProgress(0);
     setStatus("ফাইল প্রস্তুত হচ্ছে...");
-    let small: Blob;
+    let small: Blob; let pdfText: string | undefined;
     try {
       const out = await toBillImage(raw);
-      small = out.blob;
+      small = out.blob; pdfText = out.text;
       if (out.kind === "PDF" || out.kind === "HEIC") setStatus(`${out.kind} থেকে ছবি তৈরি হয়েছে...`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "ফাইল খোলা যায়নি"); setPhase("idle"); setStatus(""); return;
     }
     setFile(small); setFileHash(await sha256Hex(small));
     setPreview(URL.createObjectURL(small));
+    // Online PDF বিল: ভেতরের লেখা সরাসরি পড়া (OCR লাগে না, ভুলের সুযোগ নেই)
+    if (pdfText) {
+      const p = parseBill([pdfText]);
+      if (p.kwh !== null) {
+        setOcrText("[PDF-এর ভেতরের লেখা — OCR ছাড়া সরাসরি পড়া]\n\n" + pdfText); setConfidence(100);
+        setMeter(p.meter); setQuantity(String(p.kwh)); setOcrQty(String(p.kwh)); setActivity("electricity");
+        if (p.month) setMonth(p.month);
+        setStatus("Online PDF বিল — লেখা সরাসরি পড়া হয়েছে (OCR লাগেনি) · বিলের সাথে মিলিয়ে নিন");
+        setPhase("review"); return;
+      }
+    }
     setStatus("ভাষার ফাইল প্রস্তুত হচ্ছে (প্রথমবার একটু সময় লাগে)...");
     try {
       const { createWorker } = await import("tesseract.js");

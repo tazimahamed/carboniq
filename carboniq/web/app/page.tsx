@@ -144,7 +144,7 @@ export default function Home() {
           <div className="mx-auto grid max-w-6xl grid-cols-2 divide-white/10 px-4 md:grid-cols-4 md:divide-x">
             {[
               { v: 14000, s: "+", l: "উৎপাদন কেন্দ্র Higg FEM ব্যবহার করে" },
-              { v: 139, s: "/139", l: "স্বয়ংক্রিয় পরীক্ষা পাস" },
+              { v: 143, s: "/143", l: "স্বয়ংক্রিয় পরীক্ষা পাস" },
               { v: 256, s: "-bit", l: "SHA hash chain-এ সিল" },
               { v: 0, s: " ৳", l: "AI API খরচ — সব device-এ চলে" },
             ].map((x) => (

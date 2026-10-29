@@ -13,6 +13,28 @@ async function canvasToJpeg(canvas: HTMLCanvasElement, quality = 0.85): Promise<
     canvas.toBlob((b) => (b ? res(b) : rej(new Error("ছবি রূপান্তর ব্যর্থ"))), "image/jpeg", quality));
 }
 
+/** Online থেকে নামানো PDF বিলে (DESCO/DPDC/Titas portal) লেখা আসলেই "লেখা" হিসেবে থাকে — OCR ছাড়াই হুবহু পড়া যায় */
+async function pdfTextLayer(file: File): Promise<string> {
+  try {
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const page = await pdf.getPage(1);
+    const tc = await page.getTextContent();
+    // একই লাইনের (একই y) টুকরোগুলো জোড়া লাগিয়ে সাধারণ লেখার মতো লাইন বানানো
+    const lines = new Map<number, { x: number; s: string }[]>();
+    for (const it of tc.items as { str: string; transform: number[] }[]) {
+      if (!it.str?.trim()) continue;
+      const y = Math.round(it.transform[5] / 3) * 3;
+      (lines.get(y) ?? lines.set(y, []).get(y)!).push({ x: it.transform[4], s: it.str });
+    }
+    return Array.from(lines.entries()).sort((a, b) => b[0] - a[0])
+      .map(([, xs]) => xs.sort((a, b) => a.x - b.x).map((t) => t.s).join(" ")).join("\n");
+  } catch {
+    return "";
+  }
+}
+
 async function pdfFirstPage(file: File): Promise<HTMLCanvasElement> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -53,9 +75,12 @@ async function imageToCanvas(blob: Blob, maxSide: number): Promise<HTMLCanvasEle
 }
 
 /** ফাইলের ধরন যা-ই হোক, ফেরত দেয় ছোট করা JPG আর মূল ধরনের নাম */
-export async function toBillImage(file: File, maxSide = 1800): Promise<{ blob: Blob; kind: string }> {
+export async function toBillImage(file: File, maxSide = 1800): Promise<{ blob: Blob; kind: string; text?: string }> {
   if (file.size > 25 * 1024 * 1024) throw new Error("ফাইল ২৫ MB-এর বেশি");
-  if (isPdf(file)) return { blob: await canvasToJpeg(await pdfFirstPage(file)), kind: "PDF" };
+  if (isPdf(file)) {
+    const text = await pdfTextLayer(file);
+    return { blob: await canvasToJpeg(await pdfFirstPage(file)), kind: "PDF", text: (text.match(/\d/g) ?? []).length >= 10 ? text : undefined };
+  }
   if (isHeic(file)) {
     const jpg = await heicToBlob(file);
     return { blob: await canvasToJpeg(await imageToCanvas(jpg, maxSide)), kind: "HEIC" };

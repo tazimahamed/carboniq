@@ -70,6 +70,11 @@ const suite = (id: string, title: string, what: string) => { const s = { id, tit
   s.cases.push({ name: "মিটার রিডিং মিললে ok=true", pass: r.meter?.ok === true });
   const w = parseBill("Previous Reading 4812300\nPresent Reading 4938800\nUnits Consumed 99000 kWh");
   s.cases.push({ name: "মিটার রিডিং না মিললে ok=false (ভুল/নকল বিল ধরা)", pass: w.meter?.ok === false });
+  // OCR-এ হাজার-বিভাজক নানা ভাবে পড়া হলে
+  for (const [label, prev, pres] of [["কমা-ডট মিশ্র (4,812.300)", "4,812.300", "4,938.800"], ["ইউরোপীয় (4.812.300)", "4.812.300", "4.938.800"], ["শেষ দল হারানো (4,812)", "4,812", "4,938"], ["ফাঁকা (4,812 300)", "4,812,300", "4,938,800"]]) {
+    const t = parseBill(`Billing Month : November 2026\nPrevious Reading : ${prev}\nPresent Reading : ${pres}\nMultiplying Factor : 1\nUnits Consumed: 126,500 kWh`);
+    s.cases.push({ name: `হাজার-বিভাজক: ${label} → 126,500`, pass: t.kwh === 126500, detail: `kwh=${t.kwh} meter=${t.meter?.previous}→${t.meter?.present} ok=${t.meter?.ok}` });
+  }
 }
 
 // ---------- ৪. OCR (Tesseract, নমুনা বিল) ----------

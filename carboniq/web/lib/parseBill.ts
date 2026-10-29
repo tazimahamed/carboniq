@@ -97,8 +97,16 @@ const PREVIOUS = String.raw`previous|prev|পূর্ববর্তী`;
 
 type Raw = { kwh: number | null; month: string | null; present: number | null; previous: number | null; multiplier: number | null; dated: number[] };
 
+/** হাজারের বিভাজক মুছে ফেলা: 4,812,300 / 4.812.300 / 4,812.300 / 4.812,300 → 4812300
+ *  (৩ অঙ্কের দল দুটো বা বেশি হলে নিশ্চিতভাবে হাজার-বিভাজক; টাকার .xx দুই-অঙ্কের দশমিক ছোঁয়া হয় না) */
+export function normalizeNumbers(t: string) {
+  return t
+    .replace(/(?<![\d.,])\d{1,3}(?:[.,]\d{3}){2,}(?![\d])/g, (m) => m.replace(/[.,]/g, ""))
+    .replace(/(\d),(\d)/g, "$1$2");
+}
+
 function parseOne(raw: string): Raw {
-  const text = bnToEn(raw).replace(/(\d),(\d)/g, "$1$2");
+  const text = normalizeNumbers(bnToEn(raw));
   let kwh: number | null = null;
   for (const re of KWH_PATTERNS) {
     const m = text.match(re);
@@ -155,13 +163,23 @@ export function parseBill(input: string | string[]) {
     addPairs(presents, previouses.flatMap(oneDigitFixes));
   }
   // "Current/Previous" শব্দ পড়া না গেলে: সব পাঠের তারিখ-পরের সংখ্যা একসাথে নিয়ে জোড়া (একই বিল)
+  // হাজার-বিভাজক OCR-এ ভেঙে গেলে (4,812,300 → 4,812) দুটো রিডিংই ১০০০ গুণ ছোট পড়ে — লেখা ইউনিটের সাথে মিলিয়ে ঠিক করা
+  if (kwhs.length && pairs.length && !pairs.some((p) => kwhs.some((k) => close(p.expected, k)))) {
+    for (const p of [...pairs]) for (const f of [1000, 0.001]) {
+      const e = Math.round(p.expected * f * 100) / 100;
+      if (kwhs.some((k) => close(e, k))) pairs.push({ present: p.present * f, previous: p.previous * f, expected: e });
+    }
+  }
   if (!pairs.length) { const pool = Array.from(new Set(reads.flatMap((r) => [...r.dated, ...(r.present ? [r.present] : []), ...(r.previous ? [r.previous] : [])]))); addPairs(pool, pool); }
   pairs.sort((a, b) => a.expected - b.expected);
   const agreeing = pairs.find((p) => kwhs.some((k) => close(p.expected, k)));
   const pair = agreeing ?? pairs[0] ?? null;
 
-  // অগ্রাধিকার: (১) লেখা ইউনিট আর মিটার হিসাব মিলেছে → (২) মিটার রিডিং থেকে হিসাব → (৩) শুধু লেখা ইউনিট
-  const kwh: number | null = agreeing ? agreeing.expected : pair ? pair.expected : kwhs[0] ?? null;
+  // অগ্রাধিকার: (১) লেখা ইউনিট আর মিটার হিসাব মিলেছে → (২) মিটার হিসাব, যদি লেখা ইউনিটের কাছাকাছি মাপের হয়
+  // → (৩) লেখা ইউনিট (মিটার হিসাব অস্বাভাবিক ছোট/বড় হলে, যেমন ১২৬ বনাম ১,২৬,৫০০) → (৪) শুধু মিটার
+  const printed = kwhs[0] ?? null;
+  const plausibleMeter = pair && (printed === null || (pair.expected >= printed * 0.5 && pair.expected <= printed * 2));
+  const kwh: number | null = agreeing ? (kwhs.find((k) => close(agreeing.expected, k)) ?? agreeing.expected) : plausibleMeter ? pair!.expected : printed ?? pair?.expected ?? null;
 
   // ok = বিলে লেখা "ব্যবহৃত ইউনিট" আর মিটার রিডিং থেকে স্বাধীন হিসাব — দুটো আলাদাভাবে পড়ে মিলেছে
   const meter: MeterCheck | null = pair
@@ -173,7 +191,7 @@ export function parseBill(input: string | string[]) {
 
 /** কোনো নিয়ম না মিললে: লেখার সব বড় সংখ্যা, যাতে user এক click-এ বেছে নিতে পারে */
 export function candidateNumbers(raw: string | string[]) {
-  const text = bnToEn(Array.isArray(raw) ? raw.join("\n") : raw).replace(/(\d),(\d)/g, "$1$2");
+  const text = normalizeNumbers(bnToEn(Array.isArray(raw) ? raw.join("\n") : raw));
   const nums = (text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number).filter((n) => n >= 10 && n < 1e8 && !(n >= 1900 && n <= 2100));
   return Array.from(new Set(nums)).slice(0, 12);
 }
