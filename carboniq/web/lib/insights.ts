@@ -27,7 +27,11 @@ export function evidenceScore(rows: InRow[], ledgerValid: boolean | null): Evide
   const actions: string[] = [];
   if (!rows.length) return { score: 0, grade: "—", parts: [], actions: ["প্রথম বিল upload করুন"], missing: [] };
   const months = Array.from(new Set(rows.map((r) => ym(r.period_month)))).sort();
-  const all = monthRange(months[0], months.at(-1)!);
+  // পূর্ণতা মাপা হয় শেষ ১২ মাসের রিপোর্টিং বছরে — অনেক পুরনো একটা বিল থাকলে বছরের পর বছর "বাদ" গোনা হবে না
+  const last = months.at(-1)!;
+  const [ly, lm] = last.split("-").map(Number);
+  const start12 = `${lm === 12 ? ly : ly - 1}-${String(lm === 12 ? 1 : lm + 1).padStart(2, "0")}`;
+  const all = monthRange(months[0] > start12 ? months[0] : start12, last);
   const core = ["electricity", "natural_gas"].filter((a) => rows.some((r) => r.activity === a));
   const missing: { month: string; activity: string }[] = [];
   for (const m of all) for (const a of core) if (!rows.some((r) => r.activity === a && ym(r.period_month) === m)) missing.push({ month: m, activity: a });
@@ -49,7 +53,7 @@ export function evidenceScore(rows: InRow[], ledgerValid: boolean | null): Evide
   ];
   const score = parts.reduce((a, p) => a + p.got, 0);
 
-  for (const x of missing.slice(0, 2)) actions.push(`${monthBn(x.month)}-এর ${ACT[x.activity]} বিল যোগ করুন`);
+  for (const x of missing.slice(-2).reverse()) actions.push(`${monthBn(x.month)}-এর ${ACT[x.activity]} বিল যোগ করুন`);
   if (billShare < 1) actions.push(`${rows.length - bills.length}টা record-এ মূল বিল নেই — বিলের ছবি upload করুন (+${25 - Math.round(25 * billShare)} পর্যন্ত)`);
   if (bills.length && meterShare < 1) actions.push("যে বিলে মিটার রিডিং মেলেনি, সেগুলো আবার দেখুন");
   if (ledgerValid === false) actions.push("Ledger-এ গরমিল — auditor-কে জানান");

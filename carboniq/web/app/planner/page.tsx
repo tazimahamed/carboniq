@@ -33,8 +33,6 @@ export default function Planner() {
 
   // MACC chart মাপ
   const mT = curve.reduce((a, p) => a + p.tYr, 0) || 1;
-  const maxPos = Math.max(0, ...curve.map((p) => p.tkPerT)), maxNeg = Math.max(0, ...curve.map((p) => -p.tkPerT));
-  const span = Math.max(1, maxPos + maxNeg), zero = (maxPos / span) * 100; // শূন্যরেখা উপর থেকে কত %
 
   return (
     <Shell eyebrow="Optimize · খরচ ও কার্বন কমানো" title="বিনিয়োগ পরিকল্পনা" sub="বাজেট দিন — ১০টা সম্ভাব্য প্রকল্পের প্রতিটা সমন্বয় (১০২৪টা) পরীক্ষা করে সেরাটা বের করা হয়">
@@ -96,23 +94,10 @@ export default function Planner() {
       {/* MACC */}
       <div className="card mt-4 p-6">
         <h2 className="font-bold">Marginal Abatement Cost Curve (MACC)</h2>
-        <p className="text-xs text-[var(--muted)]">প্রতিটা bar একটা প্রকল্প — চওড়া = বছরে কত টন কমায়, গভীরতা = প্রতি টন কমাতে নিট কত টাকা বাঁচে (রেখার নিচে = লাভ, উপরে = খরচ)। গাঢ় = পরিকল্পনায় আছে</p>
-        <div className="relative mt-8 flex h-48 items-stretch">
-          <div className="absolute inset-x-0 h-px bg-[var(--ink)]/40" style={{ top: `${zero}%` }} />
-          <span className="absolute -top-4 right-0 text-[10px] text-[var(--muted)]">{maxPos > 0 ? "খরচ ↑" : ""}</span>
-          {curve.map((p) => {
-            const h = (Math.abs(p.tkPerT) / span) * 100, neg = p.tkPerT < 0, on = chosen.includes(p.id);
-            return (
-              <div key={p.id} className="group relative h-full" style={{ width: `${(p.tYr / mT) * 100}%` }} title={`${p.name}: ${Math.round(p.tkPerT).toLocaleString()} ৳/টন, ${p.tYr.toFixed(0)} টন/বছর`}>
-                <div className={`absolute inset-x-[1px] rounded-sm ${on ? "bg-[var(--leaf)]" : "bg-[var(--leaf)]/30"}`} style={neg ? { top: `${zero}%`, height: `${h}%` } : { bottom: `${100 - zero}%`, height: `${h}%` }} />
-                <span className="absolute left-1/2 top-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-[var(--ink)] px-2 py-1 text-[10px] text-white group-hover:block">{p.name}</span>
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-2 flex justify-between text-[10px] text-[var(--muted)]"><span>← কম খরচে বেশি লাভ</span><span>মোট সম্ভাব্য {mT.toFixed(0)} টন/বছর →</span></div>
+        <p className="text-xs text-[var(--muted)]">প্রতিটা bar একটা প্রকল্প — চওড়া = বছরে কত টন কমায়, উচ্চতা = প্রতি টন কমাতে নিট কত টাকা (শূন্যরেখার নিচে = লাভ, উপরে = খরচ)। গাঢ় সবুজ = পরিকল্পনায় আছে, হালকা = নেই</p>
+        <MaccChart curve={curve} chosen={chosen} total={mT} />
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--muted)]">
-          {curve.map((p, i) => <span key={p.id}>{i + 1}. {p.name} ({Math.round(p.tkPerT).toLocaleString()} ৳/t)</span>)}
+          {curve.map((p, i) => <span key={p.id} className={chosen.includes(p.id) ? "font-semibold text-[var(--ink)]" : ""}>{i + 1}. {p.name} ({Math.round(p.tkPerT).toLocaleString()} ৳/t)</span>)}
         </div>
       </div>
 
@@ -121,4 +106,49 @@ export default function Planner() {
       </p>
     </Shell>
   );
+}
+
+type Bar = { id: string; name: string; tYr: number; tkPerT: number };
+function MaccChart({ curve, chosen, total }: { curve: Bar[]; chosen: string[]; total: number }) {
+  const W = 1000, H = 260, L = 64, R = 12, T = 16, B = 34;
+  const vals = curve.map((p) => p.tkPerT).filter(isFinite);
+  const hi = Math.max(0, ...vals), lo = Math.min(0, ...vals);
+  const step = niceStep((hi - lo) / 4 || 1);
+  const top = Math.ceil(hi / step) * step, bot = Math.floor(lo / step) * step;
+  const y = (v: number) => T + ((top - v) / (top - bot || 1)) * (H - T - B);
+  const x = (t: number) => L + (t / total) * (W - L - R);
+  const ticks: number[] = [];
+  for (let v = bot; v <= top + 1e-9; v += step) ticks.push(v);
+  let cum = 0;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-5 w-full" role="img" aria-label="MACC chart">
+      {ticks.map((v) => (
+        <g key={v}>
+          <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="currentColor" strokeOpacity={v === 0 ? 0.55 : 0.08} />
+          <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="12" fill="var(--muted)">{(v / 1000).toFixed(0)}k</text>
+        </g>
+      ))}
+      <text x={12} y={T + (H - T - B) / 2} fontSize="12" fill="var(--muted)" transform={`rotate(-90 12 ${T + (H - T - B) / 2})`} textAnchor="middle">৳ / টন</text>
+      {curve.map((p, i) => {
+        const x0 = x(cum); cum += p.tYr; const x1 = x(cum);
+        const v = isFinite(p.tkPerT) ? p.tkPerT : 0, y0 = y(0), y1 = y(v), on = chosen.includes(p.id);
+        const w = Math.max(1, x1 - x0 - 2);
+        return (
+          <g key={p.id}>
+            <title>{`${p.name}: ${Math.round(v).toLocaleString()} ৳/টন · ${p.tYr.toFixed(0)} টন/বছর`}</title>
+            <rect x={x0 + 1} width={w} y={Math.min(y0, y1)} height={Math.max(1, Math.abs(y1 - y0))} rx={3}
+              fill={on ? "var(--leaf)" : "#bfe3cf"} stroke={on ? "none" : "var(--leaf)"} strokeOpacity={0.5} />
+            {w > 18 && <text x={x0 + 1 + w / 2} y={Math.max(y0, y1) - 8} textAnchor="middle" fontSize="13" fontWeight="700" fill={on ? "#fff" : "var(--ink)"}>{i + 1}</text>}
+          </g>
+        );
+      })}
+      {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+        <text key={f} x={x(total * f)} y={H - 10} fontSize="12" fill="var(--muted)" textAnchor={f === 0 ? "start" : f === 1 ? "end" : "middle"}>{(total * f).toFixed(0)} t</text>
+      ))}
+    </svg>
+  );
+}
+function niceStep(raw: number) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
 }
