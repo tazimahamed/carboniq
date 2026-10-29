@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ACTIVITY_LABEL, FACTORS } from "@/lib/factors";
 import { candidateNumbers, detectActivity, parseBill, parseFuel, type MeterCheck } from "@/lib/parseBill";
 import { ACCEPT, ocrVariants, sha256Hex, toBillImage } from "@/lib/image";
@@ -342,6 +342,8 @@ export default function Upload() {
           <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap">{ocrText}</pre>
         </details>
       )}
+
+      <SavedBills refresh={result} />
     </Shell>
   );
 }
@@ -354,5 +356,45 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
       <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] text-white ${ok ? "bg-[var(--leaf)]" : "bg-amber-500"}`}>{ok ? "✓" : "!"}</span>
       <span className={ok ? "" : "text-amber-800"}>{label}</span>
     </p>
+  );
+}
+
+type Saved = { month: string; activity: string; quantity: number; unit: string; file_hash: string; ocr_confidence: number | null; meter_ok: boolean | null; bill_match: boolean | null; attached_later: boolean; url: string | null };
+const ACT_BN: Record<string, string> = { electricity: "বিদ্যুৎ", natural_gas: "গ্যাস", diesel: "ডিজেল", lpg: "LPG" };
+const UNIT_BN: Record<string, string> = { kWh: "kWh", m3: "m³", litre: "লিটার" };
+
+/** সংরক্ষিত মূল বিল — কোন মাসের কোন record-এর প্রমাণ, মিলেছে কিনা, ছবি খুলে দেখা */
+function SavedBills({ refresh }: { refresh: unknown }) {
+  const [bills, setBills] = useState<Saved[] | null>(null);
+  useEffect(() => {
+    fetch("/api/bills", { cache: "no-store" }).then((r) => r.json()).then((j) => setBills(j.bills ?? [])).catch(() => setBills([]));
+  }, [refresh]);
+  return (
+    <section className="card mt-6 overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-[var(--line)] px-5 py-4">
+        <h2 className="font-bold">সংরক্ষিত মূল বিল</h2>
+        <span className="rounded-full bg-[var(--paper)] px-2 py-0.5 text-xs tabular-nums">{bills?.length ?? "…"}</span>
+        <p className="ml-auto hidden text-xs text-[var(--muted)] sm:block">প্রতিটা বিল private storage-এ, hash দিয়ে ledger-এ সিল করা</p>
+      </div>
+      {bills === null ? <p className="px-5 py-4 text-sm text-[var(--muted)]">লোড হচ্ছে…</p>
+        : !bills.length ? <p className="px-5 py-4 text-sm text-[var(--muted)]">এখনো কোনো বিল সংরক্ষণ হয়নি — ওপরে বিল দিয়ে "নিশ্চিত করুন ও হিসাব করুন" চাপলে এখানে আসবে।</p>
+        : (
+          <ul className="divide-y divide-[var(--line)]">
+            {bills.map((b) => (
+              <li key={b.file_hash} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm">
+                <span className="w-20 font-semibold tabular-nums">{b.month}</span>
+                <span className="w-16">{ACT_BN[b.activity] ?? b.activity}</span>
+                <span className="w-32 tabular-nums">{Number(b.quantity).toLocaleString()} {UNIT_BN[b.unit] ?? b.unit}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs ${b.meter_ok ? "bg-emerald-50 text-emerald-800" : b.bill_match === false ? "bg-amber-50 text-amber-800" : "bg-[var(--paper)] text-[var(--muted)]"}`}>
+                  {b.meter_ok ? "✓ মিটার মিলেছে" : b.bill_match === false ? "⚠ সংখ্যায় গরমিল" : "মিটার যাচাই নেই"}
+                </span>
+                {b.attached_later && <span className="text-xs text-[var(--muted)]">আগের record-এ যুক্ত</span>}
+                <span className="ml-auto font-mono text-[11px] text-[var(--muted)]">{b.file_hash.slice(0, 12)}…</span>
+                {b.url && <a href={b.url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[var(--leaf)] hover:underline">বিল দেখুন ↗</a>}
+              </li>
+            ))}
+          </ul>
+        )}
+    </section>
   );
 }
