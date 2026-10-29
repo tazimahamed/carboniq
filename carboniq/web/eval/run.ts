@@ -10,6 +10,14 @@ import { handleRpc, type LedgerEntry } from "../lib/mcp.ts";
 import { anomalies, evidenceScore, generator, intensity, buyerShare } from "../lib/insights.ts";
 import { demoMonths, BUYERS } from "../lib/demoModel.ts";
 import { ledgerToRows } from "../lib/passportRows.ts";
+import { mrv, ols, t90 } from "../lib/mrv.ts";
+import { recordRisks, periodRisk, monteCarlo, RISK_RULES } from "../lib/risk.ts";
+import { verificationStatus } from "../lib/verification.ts";
+import { search, KB_MIN_SCORE } from "../lib/kb.ts";
+import { polygonAreaM2, pvEstimate } from "../lib/solar.ts";
+import { targetRisk } from "../lib/target.ts";
+import { buildTwin, simulate } from "../lib/twin.ts";
+import { DEMO_PROJECT, DHAKA_TEMP } from "../lib/demoModel.ts";
 import { detectActivity, parseFuel } from "../lib/parseBill.ts";
 import { PROJECTS, evaluate, optimize, annuity } from "../lib/planner.ts";
 import { buildPassport, verifyPassport, newPassportId } from "../lib/passport.ts";
@@ -135,7 +143,7 @@ const rpc = (m: any) => handleRpc(m, load) as Promise<any>;
   s.cases.push({ name: "initialize → protocolVersion + tools capability", pass: init.result?.protocolVersion === "2025-06-18" && !!init.result?.capabilities?.tools });
   s.cases.push({ name: "notification-এর উত্তর নেই", pass: (await handleRpc({ jsonrpc: "2.0", method: "notifications/initialized" } as any, load)) === null });
   const list = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-  s.cases.push({ name: "tools/list → ৫টা tool, প্রত্যেকটায় inputSchema", pass: list.result?.tools?.length === 5 && list.result.tools.every((t: any) => t.inputSchema?.type === "object") });
+  s.cases.push({ name: "tools/list → ৭টা tool, প্রত্যেকটায় inputSchema", pass: list.result?.tools?.length === 7 && list.result.tools.every((t: any) => t.inputSchema?.type === "object") });
   const em = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_emissions", arguments: {} } });
   const direct = rows.reduce((a, e) => a + e.payload.kg_co2e, 0) / 1000;
   s.cases.push({ name: "get_emissions মোট = ledger-এর যোগফল", pass: Math.abs(em.result.structuredContent.total - direct) < 0.01, detail: `${em.result.structuredContent.total} vs ${direct.toFixed(2)}` });
@@ -160,7 +168,7 @@ const rpc = (m: any) => handleRpc(m, load) as Promise<any>;
     ["নভেম্বরের বিদ্যুৎ কীভাবে হিসাব হলো?", "explain", "2026-11"], ["how was november electricity calculated", "explain", "2026-11"], ["অক্টোবরের গ্যাসের হিসাবের প্রমাণ দেখাও", "explain", "2026-10"], ["explain march 2026", "explain", "2026-03"],
     ["Ledger কি অক্ষত?", "verify"], ["কেউ কি ডেটা বদলেছে?", "verify"], ["verify the hash chain", "verify"], ["এই ডেটা কি বিশ্বাস করা যায়", "verify"],
     ["কোন গুণক ব্যবহার হয়েছে?", "factors"], ["Ember factor কত?", "factors"], ["emission factor source", "factors"], ["DESNZ license", "factors"],
-    ["Scope 1 মানে কী?", "scope"], ["what is scope 2", "scope"], ["হ্যালো", "help"],
+    ["Scope 1 মানে কী?", "knowledge"], ["what is scope 2", "knowledge"], ["হ্যালো", "help"],
   ];
   for (const [q, kind, month] of Q) {
     const it: any = route(q);
@@ -328,6 +336,133 @@ const R2 = E2.map((e) => ({ activity: e.payload.activity, quantity: e.payload.qu
     const it = route(q); const a = compose(it, [sc]); const v = verifyAi(a.text, { ...a, key: [] }, [sc]);
     s.cases.push({ name: `উত্তরে বানানো সংখ্যা নেই: ${q}`, pass: v.ok || v.reason === "refusal", detail: v.reason ?? "ok" });
   }
+}
+
+
+// ---------- ১৪. MRV: নির্গমন কমানো যাচাই ----------
+{
+  const s = suite("mrv", "MRV: কমানো যাচাই (scientific)", "Synthetic তথ্যে জানা প্রভাব বসিয়ে দেখা হয় model সেটা ফিরে পায় কিনা; leakage, দুর্বল model আর উৎপাদন-কমার ফাঁদ ধরা পড়ে কিনা");
+  // হাতে যাচাই: y = 2 + 3x নিখুঁত হলে coefficient ঠিক আসে
+  const o = ols([[1], [2], [3], [4], [5]], [5, 8.1, 10.9, 14, 17]);
+  s.cases.push({ name: "OLS coefficient হাতে করা হিসাবের সাথে মেলে (Sxy/Sxx = 29.9/10 = 2.99, b₀ = 2.03)", pass: !!o && Math.abs(o.beta[1] - 2.99) < 1e-9 && Math.abs(o.beta[0] - 2.03) < 1e-9, detail: o ? o.beta.map((b) => b.toFixed(3)).join(", ") : "" });
+  s.cases.push({ name: "৯০% t মান (df=5) = 2.015", pass: t90(5) === 2.015 });
+  // demo: জুলাই থেকে বিদ্যুতে ৭% কম বসানো আছে — আসল প্রভাব অনিশ্চয়তা-সীমার ভেতরে কিনা
+  const ms = demoMonths(), post = ms.filter((m) => m.month >= DEMO_PROJECT.start);
+  const trueSavedT = post.reduce((a, m) => a + (m.kwh / (1 - DEMO_PROJECT.effect)) * DEMO_PROJECT.effect, 0) * 0.696 / 1000;
+  const r = mrv(DEMO_PROJECT, R2, PROD);
+  s.cases.push({ name: "Demo-তে বসানো ৭% সাশ্রয় → ৯০% সীমার ভেতরে ফিরে পায়", pass: Math.abs(r.claimedT - trueSavedT) <= r.claimedUT && r.status === "verified-savings", detail: `মাপা ${r.claimedT.toFixed(1)} ± ${r.claimedUT.toFixed(1)} t, আসল ${trueSavedT.toFixed(1)} t` });
+  s.cases.push({ name: "বিদ্যুতের baseline model ASHRAE 14 পাস করে", pass: r.fuels.find((f) => f.activity === "electricity")!.modelOk });
+  s.cases.push({ name: "ডিজেল (load-shedding নির্ভর) model দুর্বল → নিট থেকে বাদ, সতর্কতা দেখায়", pass: !r.fuels.find((f) => f.activity === "diesel")!.modelOk && r.unverifiable.length === 1 });
+  s.cases.push({ name: "আগস্টের গ্যাস-বৃদ্ধি leakage হিসেবে ধরা পড়ে, নিট < দাবি", pass: r.leakage.some((l) => l.activity === "natural_gas") && r.netT < r.claimedT });
+  // প্রভাব ছাড়া: একই তথ্য, কিন্তু প্রকল্প শুরু ধরি এমন মাসে যেখানে কিছুই বদলায়নি
+  const clean = R2.map((x) => ({ ...x })).filter((x) => x.period_month < "2026-07");
+  const r0 = mrv({ id: "t", name: "t", start: "2026-05", activities: ["electricity"] }, clean, PROD.filter((p) => p.period_month < "2026-07"), 6);
+  s.cases.push({ name: "প্রভাব না থাকলে সাশ্রয় দাবি করে না (তথ্য কম → insufficient/অনিশ্চিত)", pass: r0.status !== "verified-savings", detail: r0.status });
+  // উৎপাদন কমার ফাঁদ: পিস ২০% কম, বিদ্যুৎ ১৬% কম → মোট কমেছে কিন্তু প্রতি পিসে বেড়েছে
+  const mk = (n: number, start: number, f: (i: number) => [number, number]) => {
+    const rows: any[] = [], prod: any[] = [];
+    for (let i = 0; i < n; i++) { const d = new Date(Date.UTC(start, i, 1)), m = d.toISOString().slice(0, 7), [pcs, kwh] = f(i); rows.push({ activity: "electricity", quantity: kwh, period_month: m + "-01", scope: 2, kg_co2e: kwh * 0.696, has_bill: false, meter_ok: null }); prod.push({ period_month: m + "-01", buyer: "x", pieces: pcs }); }
+    return { rows, prod };
+  };
+  const trap = mk(14, 2025, (i) => i < 10 ? [100000 + (i % 3) * 5000, 20000 + 0.3 * (100000 + (i % 3) * 5000) + (i % 2) * 300] : [80000, 0.84 * (20000 + 0.3 * 100000)]);
+  const rt = mrv({ id: "t", name: "t", start: "2025-11", activities: ["electricity"] }, trap.rows, trap.prod);
+  s.cases.push({ name: "উৎপাদন কমায় মোট কমলেও প্রতি পিসে বাড়লে আলাদা করে দেখায়", pass: rt.intensity.changePct > 0, detail: `প্রতি পিসে ${rt.intensity.changePct.toFixed(1)}%` });
+  s.cases.push({ name: "Baseline ৬ মাসের কম → দাবি করে না", pass: mrv({ id: "t", name: "t", start: "2025-12", activities: ["electricity"] }, R2, PROD).status === "insufficient-data" });
+  s.cases.push({ name: "তাপমাত্রা ডেটা ঢাকার ১২ মাসের climatology", pass: DHAKA_TEMP.length === 12 });
+}
+
+// ---------- ১৫. ঝুঁকি ও অনিশ্চয়তা ----------
+{
+  const s = suite("risk", "ঝুঁকি (audit অগ্রাধিকার) ও Monte Carlo", "প্রতিটা ঝুঁকির নিয়ম আলাদা করে পরীক্ষা; অনিশ্চয়তা পুনরুৎপাদনযোগ্য ও যুক্তিসঙ্গত কিনা");
+  const ent = (p: any) => ({ payload: { record_id: "r", activity: "electricity", quantity: 12345, period_month: "2026-09-01", scope: 2, kg_co2e: 8592, ...p } });
+  const one = (p: any, now = "2026-10") => recordRisks([ent(p)], [], now)[0];
+  s.cases.push({ name: "বিল নেই → +৩০", pass: one({}).flags.some((f) => f.key === "noBill") && one({}).score === RISK_RULES.noBill });
+  s.cases.push({ name: "বিল আর মিটার মিলেছে → ঝুঁকি ০", pass: one({ evidence: { meter_check: { ok: true } } }).score === 0 });
+  s.cases.push({ name: "বিলের সংখ্যায় গরমিল → 'বেশি' ঝুঁকি", pass: one({ evidence: { meter_check: { ok: true } }, bill_check: { ok: false, diff_pct: 12 } }).flags.some((f) => f.key === "billMismatch") });
+  s.cases.push({ name: "OCR-এর সংখ্যা হাতে বদলানো → flag", pass: one({ evidence: { meter_check: { ok: true }, edited_after_ocr: true } }).flags.some((f) => f.key === "edited") });
+  s.cases.push({ name: "গোল সংখ্যা (১,০০,০০০) → flag", pass: one({ quantity: 100000 }).flags.some((f) => f.key === "round") });
+  s.cases.push({ name: "ভবিষ্যতের মাস → flag", pass: one({ period_month: "2026-12-01" }).flags.some((f) => f.key === "future") });
+  const rk = recordRisks(E2, PROD, "2026-10"), pr = periodRisk(rk);
+  s.cases.push({ name: "Demo: অস্বাভাবিক মাস (আগস্টের গ্যাস) বাড়তি ঝুঁকি পায়", pass: rk.some((x) => x.month === "2026-08" && x.activity === "natural_gas" && x.flags.some((f) => f.key === "anomaly")) });
+  s.cases.push({ name: "সময়ের ঝুঁকি নির্গমনের ওজনে গড়, কারণসহ", pass: pr.score >= 30 && pr.reasons[0]?.key === "noBill", detail: `${pr.score} · ${pr.priority}` });
+  const a = monteCarlo(E2), b = monteCarlo(E2);
+  s.cases.push({ name: "Monte Carlo: একই seed-এ একই ফল (পুনরুৎপাদনযোগ্য)", pass: a.lo === b.lo && a.hi === b.hi });
+  s.cases.push({ name: "Monte Carlo: ৯৫% সীমার ভেতরে মূল হিসাব, সীমা যুক্তিসঙ্গত (২–১০%)", pass: a.lo < a.central && a.central < a.hi && a.relPct > 2 && a.relPct < 10, detail: `${a.central.toFixed(0)} t, ±${a.relPct.toFixed(1)}%` });
+  const verified = E2.map((e) => ({ payload: { ...e.payload, evidence: { meter_check: { ok: true } } } }));
+  s.cases.push({ name: "মিটার-যাচাই করা তথ্যে অনিশ্চয়তা কম", pass: monteCarlo(verified).relPct < a.relPct, detail: `${monteCarlo(verified).relPct.toFixed(1)}% বনাম ${a.relPct.toFixed(1)}%` });
+}
+
+// ---------- ১৬. যাচাইয়ের তিন স্তর ----------
+{
+  const s = suite("verification", "যাচাইয়ের তিন স্তর", "একটা স্তর আরেকটাকে বোঝায় না; ইতিহাস hash-chain-এ বাঁধা");
+  const ev = (level: string, i: number) => ({ target_type: "passport", target_id: "ABC", level, reviewer: "R" + i, organization: "O", scope: "S", created_at: "2026-10-0" + i, hash: "h" + i });
+  s.cases.push({ name: "কোনো ঘটনা নেই → শুধু system-এর হিসাব", pass: verificationStatus([], "passport", "ABC").highest === "calculated" });
+  const onlyInd = verificationStatus([ev("independent", 1)], "passport", "ABC");
+  s.cases.push({ name: "শুধু স্বাধীন যাচাই থাকলে কারখানার যাচাই 'হয়েছে' দেখায় না", pass: onlyInd.highest === "independent" && onlyInd.factory === null });
+  s.cases.push({ name: "অন্য passport-এর যাচাই এখানে গোনা হয় না", pass: verificationStatus([ev("factory_review", 1)], "passport", "XYZ").highest === "calculated" });
+  let prev = GENESIS; const chain = [1, 2, 3].map((i) => { const payload = { level: "factory_review", i }; const h = makeHash(payload, prev); const e = { payload, prev_hash: prev, hash: h }; prev = h; return e; });
+  const bad = JSON.parse(JSON.stringify(chain)); bad[1].payload.i = 9;
+  s.cases.push({ name: "যাচাই-ইতিহাস বদলালে hash-chain ধরা পড়ে", pass: verifyChain(chain) && !verifyChain(bad) });
+}
+
+
+// ---------- ১৬খ. MRV ও অনিশ্চয়তা — MCP আর Copilot দিয়ে ----------
+{
+  const s = suite("mcp_mrv", "MCP + Copilot: কমানো ও অনিশ্চয়তা", "get_reduction / get_uncertainty tool সঠিক সংখ্যা দেয়, Copilot সঠিক tool বাছে আর বানানো সংখ্যা দেয় না");
+  const call = async (name: string) => ((await handleRpc({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: {} } }, async () => E2, async () => PROD)) as any).result?.structuredContent;
+  const red = await call("get_reduction"), unc = await call("get_uncertainty"), direct = mrv(DEMO_PROJECT, R2, PROD);
+  s.cases.push({ name: "get_reduction = সরাসরি MRV হিসাব (এক জায়গার সংখ্যা অন্য জায়গায় মেলে)", pass: red?.claimed_tco2e === Math.round(direct.claimedT * 10) / 10 && red?.status === "verified-savings", detail: `${red?.claimed_tco2e} ± ${red?.claimed_u90}` });
+  s.cases.push({ name: "get_uncertainty: মোট = ledger-এর যোগফল, ৯৫% সীমা আছে", pass: Math.abs(unc?.total_tco2e - E2.reduce((a, e) => a + e.payload.kg_co2e, 0) / 1000) < 0.06 && unc.range95[0] < unc.total_tco2e && unc.range95[1] > unc.total_tco2e });
+  for (const [q, k] of [["প্রকল্পে কত কমেছে?", "reduction"], ["LED প্রকল্পে কত সাশ্রয় হলো", "reduction"], ["মোট নির্গমন কতটা নিশ্চিত?", "uncertainty"], ["audit কোথায় আগে দরকার", "uncertainty"]] as const) {
+    const it: any = route(q); s.cases.push({ name: `${q} → ${k}`, pass: it.kind === k, detail: it.kind });
+  }
+  for (const [it, sc] of [[{ kind: "reduction" }, red], [{ kind: "uncertainty" }, unc]] as const) {
+    const a = compose(it as any, [sc]), v = verifyAi(a.text, { ...a, key: [] }, [sc]);
+    s.cases.push({ name: `${it.kind}: উত্তরে বানানো সংখ্যা নেই`, pass: v.ok || v.reason === "refusal", detail: v.reason ?? "ok" });
+  }
+}
+
+// ---------- ১৭. উৎসসহ Copilot (RAG) ----------
+{
+  const s = suite("rag", "Copilot: উৎসসহ উত্তর (BM25 RAG)", "পদ্ধতির প্রশ্নে সঠিক উৎস-অংশ খোঁজে কিনা; উৎসে না থাকলে বানিয়ে বলে না");
+  for (const [q, id] of [["IPMVP Option C কীভাবে কাজ করে?", "ipmvp-c"], ["scope 2 location based মানে কী?", "scope2-location"], ["বিদ্যুতের গুণক কেন 0.696?", "ember-grid"], ["Monte Carlo অনিশ্চয়তা কী?", "monte-carlo"], ["leakage কী?", "leakage"], ["passport-এ ভাগের পদ্ধতি কী?", "passport"], ["hash কী প্রমাণ করে?", "hash"], ["স্বাধীন যাচাই আর কারখানার যাচাইয়ের পার্থক্য", "verification-levels"], ["CV(RMSE) কত হলে model ভালো?", "ashrae14"]] as const) {
+    const it: any = route(q), top = search(q, 1)[0];
+    const a = compose(it, []);
+    s.cases.push({ name: `${q} → ${id}`, pass: it.kind === "knowledge" && top.p.id === id && a.text.includes("উৎস:"), detail: `${it.kind} · ${top.p.id} (${top.score.toFixed(1)})` });
+  }
+  for (const q of ["বাংলাদেশের প্রধানমন্ত্রী কে?", "ক্রিকেট খেলা কবে?", "আজ আবহাওয়া কেমন?"]) {
+    const it: any = route(q), a = compose(it, []);
+    s.cases.push({ name: `উত্তর নেই এমন প্রশ্ন: ${q} → বানিয়ে বলে না`, pass: !a.text.includes("উৎস:") && (it.kind === "help" || /পাওয়া যায়নি/.test(a.text)), detail: it.kind });
+  }
+  s.cases.push({ name: "অপ্রাসঙ্গিক প্রশ্নে BM25 score সীমার নিচে", pass: search("ক্রিকেট খেলা কবে", 1)[0].score < KB_MIN_SCORE });
+}
+
+// ---------- ১৮. Twin, লক্ষ্য, Solar ----------
+{
+  const s = suite("twin", "Energy Twin, buyer-লক্ষ্য ও Rooftop Solar", "Twin আসল তথ্যে কতটা মেলে (backtest); what-if দিক ঠিক কিনা; solar-এর জ্যামিতি ও সূত্র হাতে মেলানো");
+  const tw = buildTwin(R2, PROD);
+  const be = tw.backtest.find((b) => b.activity === "electricity")!, bg = tw.backtest.find((b) => b.activity === "natural_gas")!;
+  s.cases.push({ name: "Twin backtest: বিদ্যুতের গড় ভুল < ১০%", pass: be.mape < 10, detail: `${be.mape.toFixed(1)}%` });
+  s.cases.push({ name: "Twin backtest: গ্যাসের গড় ভুল < ১০%", pass: bg.mape < 10, detail: `${bg.mape.toFixed(1)}%` });
+  const base = { pieces: 250000, temp: 27, outageH: 1, gridChangePct: 0, projects: [] as string[] };
+  const s0 = simulate(tw, base)!, sP = simulate(tw, { ...base, pieces: 300000 })!, sH = simulate(tw, { ...base, temp: 29.5 })!, sL = simulate(tw, { ...base, outageH: 3 })!, sG = simulate(tw, { ...base, gridChangePct: -20 })!, sX = simulate(tw, { ...base, projects: ["led", "air"] })!;
+  s.cases.push({ name: "উৎপাদন বাড়লে নির্গমন বাড়ে, প্রতি পিসে কমে (স্থির লোড ভাগ হয়)", pass: sP.total > s0.total && sP.kgPerPiece < s0.kgPerPiece });
+  s.cases.push({ name: "গরম বাড়লে বিদ্যুৎ বাড়ে", pass: sH.kwh > s0.kwh });
+  s.cases.push({ name: "Load-shedding বাড়লে ডিজেল ও খরচ বাড়ে", pass: sL.diesel > s0.diesel * 2.5 && sL.tk > s0.tk });
+  s.cases.push({ name: "Grid ২০% পরিষ্কার হলে শুধু Scope 2 ২০% কমে", pass: Math.abs(sG.tE - s0.tE * 0.8) < 1e-9 && sG.tG === s0.tG });
+  s.cases.push({ name: "প্রকল্প চালু করলে নির্গমন ও খরচ কমে", pass: sX.total < s0.total && sX.tk < s0.tk });
+  s.cases.push({ name: "Zone-ভাগের যোগফল = মোট", pass: Math.abs(s0.zones.reduce((a, z) => a + z.t, 0) - s0.total) < 1e-9 });
+  // Solar: ১০০ m × ৬০ m আয়তক্ষেত্র ≈ ৬,০০০ m²
+  const lat = 24, dLat = 60 / 110_574, dLng = 100 / (111_320 * Math.cos((lat * Math.PI) / 180));
+  const area = polygonAreaM2([{ lat, lng: 90 }, { lat, lng: 90 + dLng }, { lat: lat + dLat, lng: 90 + dLng }, { lat: lat + dLat, lng: 90 }]);
+  s.cases.push({ name: "ছাদের ক্ষেত্রফল: ১০০×৬০ m আয়তক্ষেত্র → ৬,০০০ m² (±০.৫%)", pass: Math.abs(area - 6000) / 6000 < 0.005, detail: `${area.toFixed(0)} m²` });
+  const pv = pvEstimate(6000, 4.6, 1e9);
+  s.cases.push({ name: "Solar সূত্র হাতে মেলে: ৬,০০০×০.৭×০.২ = ৮৪০ kWp; ৮৪০×৪.৬×৩৬৫×০.৭৮ kWh", pass: Math.abs(pv.kwp - 840) < 1e-9 && Math.abs(pv.kwhYr - 840 * 4.6 * 365 * 0.78) < 1e-6 });
+  s.cases.push({ name: "Solar নিজের ব্যবহার দিনের লোডে সীমিত (৬০%)", pass: pvEstimate(6000, 4.6, 1_000_000).used === 600_000 });
+  const series = R2.length ? (await import("../lib/insights.ts")).intensity(R2, PROD) : [];
+  const t = targetRisk(series, 10, "2027-10", 0)!;
+  s.cases.push({ name: "লক্ষ্য: পূর্বাভাসের সীমার সাথে ঝুঁকির শ্রেণী সামঞ্জস্যপূর্ণ", pass: !!t && ((t.risk === "বেশি" && t.lo > t.target) || (t.risk === "কম" && t.hi <= t.target) || (t.risk === "মাঝারি" && t.lo <= t.target && t.hi > t.target)), detail: t ? `${t.risk} · লক্ষ্য ${t.target.toFixed(3)} · সীমা ${t.lo.toFixed(3)}–${t.hi.toFixed(3)}` : "" });
+  s.cases.push({ name: "পরিকল্পনা ১০% কমালে পূর্বাভাসও ১০% কমে", pass: Math.abs(targetRisk(series, 10, "2027-10", 10)!.withPlan - t.projected * 0.9) < 1e-12 });
 }
 
 // ---------- ফলাফল ----------

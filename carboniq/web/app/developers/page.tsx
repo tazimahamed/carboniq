@@ -5,7 +5,10 @@ import Shell from "@/components/Shell";
 const SAMPLES: { tool: string; label: string; args: Record<string, unknown> }[] = [
   { tool: "get_emissions", label: "মোট নির্গমন", args: { group_by: "total" } },
   { tool: "get_emissions", label: "মাসভিত্তিক (২০২৬)", args: { from: "2026-01", to: "2026-12" } },
-  { tool: "explain_calculation", label: "নভেম্বর ২০২৬-এর বিদ্যুৎ ব্যাখ্যা", args: { month: "2026-11", activity: "electricity" } },
+  { tool: "explain_calculation", label: "অক্টোবর ২০২৬-এর বিদ্যুৎ ব্যাখ্যা", args: { month: "2026-10", activity: "electricity" } },
+  { tool: "get_reduction", label: "কমানো যাচাই (MRV)", args: {} },
+  { tool: "get_uncertainty", label: "অনিশ্চয়তা ও audit ঝুঁকি", args: {} },
+  { tool: "get_insights", label: "Evidence Score ও সতর্কবার্তা", args: {} },
   { tool: "verify_ledger", label: "Ledger যাচাই", args: {} },
   { tool: "get_factors", label: "গুণকের উৎস", args: {} },
 ];
@@ -112,6 +115,13 @@ export default function Developers() {
             <div className="mt-6 rounded-xl border-2 border-dashed border-black/10 p-10 text-center text-sm text-gray-400">উপরের যেকোনো একটা বোতাম চাপুন</div>
           )}
         </div>
+      </div>
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        {[
+          ["নিরাপত্তা", "সব tool শুধু পড়ে (read-only), কিছু বদলাতে পারে না। ইনপুট schema দিয়ে যাচাই হয়; একসাথে সর্বোচ্চ ২০টা অনুরোধ; প্রতি IP মিনিটে ৬০টা (rate limit)। MCP_TOKEN বসালে Bearer token ছাড়া চলে না।"],
+          ["CSV export", "প্রতিটা record — পরিমাণ, গুণক, উৎস, প্রমাণের স্তর, বিলের hash — buyer বা auditor-এর spreadsheet-এর জন্য। GET /api/export"],
+          ["সীমা", "এটা একটা demo কারখানা (synthetic তথ্য)। Production-এ প্রতিটা কারখানার আলাদা token আর tenant isolation লাগবে — roadmap-এ আছে।"],
+        ].map(([t, d]) => <div key={t} className="card p-5"><p className="font-bold">{t}</p><p className="mt-1 text-sm text-[var(--muted)]">{d}</p>{t === "CSV export" && <a href="/api/export" download className="mt-3 inline-block rounded-full bg-[var(--ink)] px-4 py-2 text-xs font-semibold text-white">CSV নামান ↓</a>}</div>)}
       </div>
     </Shell>
   );

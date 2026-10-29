@@ -149,7 +149,7 @@ export default function Upload() {
         {steps.map((s, i) => (
           <li key={s} className="flex items-center gap-2">
             <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold transition ${
-              i < stepIdx ? "bg-[var(--leaf)] text-white" : i === stepIdx ? "bg-[var(--ink)] text-[var(--lime)] ring-4 ring-[var(--lime)]/30" : "bg-gray-200 text-gray-500"}`}>
+              i < stepIdx ? "bg-[var(--leaf)] text-white" : i === stepIdx ? "bg-[var(--ink)] text-[var(--lime)] ring-4 ring-lime/30" : "bg-gray-200 text-gray-500"}`}>
               {i < stepIdx ? "✓" : i + 1}
             </span>
             <span className={i <= stepIdx ? "font-medium" : "text-gray-400"}>{s}</span>
@@ -165,7 +165,7 @@ export default function Upload() {
           onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) runOcr(f); }}
           onClick={() => !preview && input.current?.click()}
           className={`relative flex min-h-[380px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-dashed transition ${
-            drag ? "scale-[1.01] border-[var(--leaf)] bg-emerald-50" : preview ? "border-transparent bg-[var(--ink)]" : "cursor-pointer border-[var(--leaf)]/25 bg-white hover:border-[var(--leaf)] hover:bg-emerald-50/40"}`}>
+            drag ? "scale-[1.01] border-[var(--leaf)] bg-emerald-50" : preview ? "border-transparent bg-[var(--ink)]" : "cursor-pointer border-leaf/25 bg-white hover:border-[var(--leaf)] hover:bg-emerald-50/40"}`}>
           <input ref={input} type="file" accept={ACCEPT} className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) runOcr(f); }} />
           {preview ? (
@@ -186,7 +186,7 @@ export default function Upload() {
                 <div className="absolute inset-0 rotate-[-6deg] rounded-lg border border-[var(--line)] bg-white shadow-sm" />
                 <div className="absolute inset-0 rotate-[4deg] rounded-lg border border-[var(--line)] bg-white p-2.5 shadow-md">
                   {[70, 90, 55, 80, 65].map((w, i) => <div key={i} className="mb-1.5 h-1 rounded bg-[var(--line)]" style={{ width: `${w}%` }} />)}
-                  <div className="mt-2 h-3 rounded bg-[var(--lime)]/60" />
+                  <div className="mt-2 h-3 rounded bg-lime/60" />
                 </div>
                 <span className="absolute -bottom-2 -right-3 grid h-8 w-8 place-items-center rounded-full bg-[var(--ink)] text-[var(--lime)] shadow-lg">
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
@@ -258,7 +258,7 @@ export default function Upload() {
                   {FACTORS.map((f) => (
                     <button key={f.activity} onClick={() => setActivity(f.activity)}
                       className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                        activity === f.activity ? "border-[var(--leaf)] bg-emerald-50 ring-2 ring-[var(--leaf)]/20" : "border-black/10 hover:border-black/30"}`}>
+                        activity === f.activity ? "border-[var(--leaf)] bg-emerald-50 ring-2 ring-leaf/20" : "border-black/10 hover:border-black/30"}`}>
                       {ACTIVITY_LABEL[f.activity]}
                       <span className="block text-[10px] text-gray-400">Scope {f.scope}</span>
                     </button>
@@ -266,7 +266,7 @@ export default function Upload() {
                 </div>
               </div>
               <label className="block text-sm font-medium">পরিমাণ
-                <div className="mt-1 flex rounded-xl border border-black/10 focus-within:border-[var(--leaf)] focus-within:ring-2 focus-within:ring-[var(--leaf)]/20">
+                <div className="mt-1 flex rounded-xl border border-black/10 focus-within:border-[var(--leaf)] focus-within:ring-2 focus-within:ring-leaf/20">
                   <input value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="decimal" placeholder="যেমন 120000"
                     className="w-full rounded-l-xl bg-transparent px-3 py-2.5 text-lg tabular-nums outline-none" />
                   <span className="grid place-items-center px-3 text-sm text-gray-400">{unit}</span>
@@ -304,7 +304,7 @@ export default function Upload() {
 
               <label className="block text-sm font-medium">মাস
                 <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2.5 outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-[var(--leaf)]/20" />
+                  className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2.5 outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-leaf/20" />
               </label>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-gray-50 p-3 text-sm">
                 <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--leaf)]" />

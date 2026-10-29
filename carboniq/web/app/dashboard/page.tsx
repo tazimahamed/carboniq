@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import TrustRow from "@/components/TrustRow";
+import CarbonFlow from "@/components/CarbonFlow";
 import { useRecords, type Row } from "@/lib/useRecords";
 import { ACTIVITY_LABEL } from "@/lib/factors";
 import Shell from "@/components/Shell";
@@ -114,7 +116,7 @@ export default function Dashboard() {
 
       {!loading && rows.length === 0 && !error ? (
         <div className="card flex flex-col items-center px-6 py-16 text-center">
-          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[var(--lime)]/25 text-[var(--forest)]"><Ico d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" className="h-6 w-6" /></span>
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-lime/25 text-[var(--forest)]"><Ico d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" className="h-6 w-6" /></span>
           <p className="mt-5 text-lg font-bold">এখনো কোনো হিসাব নেই</p>
           <p className="mt-1 max-w-sm text-sm text-[var(--muted)]">প্রথম বিল upload করুন, অথবা ১২ মাসের synthetic demo data দিয়ে পুরো dashboard দেখুন।</p>
           <div className="mt-6 flex gap-3">
@@ -127,7 +129,7 @@ export default function Dashboard() {
           {/* KPI */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="grain relative overflow-hidden rounded-[18px] bg-[var(--ink)] p-5 text-white">
-              <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[var(--leaf)]/30 blur-2xl" />
+              <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-leaf/30 blur-2xl" />
               <p className="relative text-[13px] text-white/60">মোট নির্গমন</p>
               <p className="relative mt-1 text-[32px] font-extrabold tracking-tight">{loading ? "—" : <CountUp to={t} decimals={1} />}<span className="ml-1 text-sm font-semibold text-[var(--lime)]">tCO₂e</span></p>
               <div className="relative mt-2"><Spark values={d.byMonth.map((x) => x.t)} color="#c6f36b" /></div>
@@ -228,7 +230,7 @@ export default function Dashboard() {
                         <p className="mt-0.5 text-xs text-[var(--muted)]">{ins.gen.total.litres.toLocaleString()} লিটার ডিজেল, grid-এর চেয়ে প্রতি kWh অনেক দামি · সবচেয়ে বেশি {ins.gen.peak ? monthLabel(ins.gen.peak.month) : ""}-এ</p>
                         <div className="mt-2 flex h-8 items-end gap-1">
                           {ins.gen.months.map((g) => (
-                            <div key={g.month} className="flex-1 rounded-t-sm bg-[var(--forest)]/70" style={{ height: `${(g.litres / (ins.gen.peak?.litres || 1)) * 100}%` }} title={`${monthLabel(g.month)}: ${g.litres} L`} />
+                            <div key={g.month} className="flex-1 rounded-t-sm bg-forest/70" style={{ height: `${(g.litres / (ins.gen.peak?.litres || 1)) * 100}%` }} title={`${monthLabel(g.month)}: ${g.litres} L`} />
                           ))}
                         </div>
                       </div>
@@ -240,6 +242,10 @@ export default function Dashboard() {
               <p className="mt-3 text-[10px] text-[var(--muted)]">{ASSUME_NOTE}। Demo ডেটা synthetic।</p>
             </div>
           </div>
+
+          {/* অনিশ্চয়তা + ঝুঁকি + MRV */}
+          <TrustRow rows={rows} production={production} />
+          <CarbonFlow rows={rows} production={production} />
 
           {/* chart + বিভাজন */}
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.85fr_1fr]">
@@ -323,12 +329,19 @@ export default function Dashboard() {
                   { href: "/upload", t: "নতুন বিল upload", s: "ছবি, HEIC বা PDF", d: "M12 4v12M6 10l6-6 6 6M4 20h16" },
                   { href: "/report", t: "Buyer report বানান", s: "উৎস ও hash-সহ PDF", d: "M6 2h9l5 5v15H6V2zM9 13h7M9 17h7" },
                   { href: "/copilot", t: "Copilot-কে জিজ্ঞেস করুন", s: "\"কোন মাসে সবচেয়ে বেশি?\"", d: "M4 4h16v12H8l-4 4V4z" },
+                  { href: "/api/export", t: "CSV export (buyer/auditor)", s: "প্রতিটা record, গুণক আর hash", d: "M12 3v12M7 10l5 5 5-5M5 21h14" },
+                  { href: "/mrv", t: "কমানো যাচাই (MRV)", s: "প্রকল্প না করলে কত হতো", d: "M3 17l6-6 4 4 8-8M15 7h6v6" },
+                  { href: "/twin", t: "Energy Twin", s: "What-if simulation", d: "M12 2l9 5v10l-9 5-9-5V7l9-5zM12 12l9-5M12 12v10M12 12L3 7" },
                 ].map((a) => (
-                  <Link key={a.href} href={a.href} className="group flex items-center gap-3 rounded-xl border border-[var(--line)] p-3 transition hover:border-[var(--leaf)]/40 hover:bg-[var(--paper)]">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--ink)] text-[var(--lime)]"><Ico d={a.d} /></span>
-                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{a.t}</span><span className="block truncate text-xs text-[var(--muted)]">{a.s}</span></span>
-                    <span className="text-[var(--muted)] transition group-hover:translate-x-0.5">→</span>
-                  </Link>
+                  (() => {
+                    const inner = <>
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--ink)] text-[var(--lime)]"><Ico d={a.d} /></span>
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{a.t}</span><span className="block truncate text-xs text-[var(--muted)]">{a.s}</span></span>
+                      <span className="text-[var(--muted)] transition group-hover:translate-x-0.5">→</span>
+                    </>;
+                    const cls = "group flex items-center gap-3 rounded-xl border border-[var(--line)] p-3 transition hover:border-leaf/40 hover:bg-[var(--paper)]";
+                    return a.href.startsWith("/api/") ? <a key={a.href} href={a.href} download className={cls}>{inner}</a> : <Link key={a.href} href={a.href} className={cls}>{inner}</Link>;
+                  })()
                 ))}
               </div>
             </div>

@@ -4,7 +4,7 @@ import { calculate } from "./engine";
 import { GENESIS, makeHash } from "./ledger";
 import { db } from "./supabase";
 import { DEMO_FACTORY_ID, DEMO_ORG_ID } from "./demo";
-import { BUYERS, demoMonths } from "./demoModel";
+import { BUYERS, DEMO_PROJECT, demoMonths } from "./demoModel";
 
 
 function isMissingTable(e: { code?: string; message?: string }) {
@@ -21,7 +21,7 @@ export async function clearDemo() {
     for (const f of files ?? []) paths.push(`${DEMO_FACTORY_ID}/${m.name}/${f.name}`);
   }
   if (paths.length) await supa.storage.from("bills").remove(paths);
-  for (const t of ["passports", "production", "ledger_entries", "activity_records", "documents"]) {
+  for (const t of ["verifications", "mrv_projects", "passports", "production", "ledger_entries", "activity_records", "documents"]) {
     const { error } = await supa.from(t).delete().eq("factory_id", DEMO_FACTORY_ID);
     if (error && !isMissingTable(error)) throw error; // migration_2 না চালানো থাকলেও reset চলবে
   }
@@ -64,5 +64,10 @@ export async function seedDemo() {
   if (e2) throw e2;
   const { error: e3 } = await supa.from("production").insert(production);
   if (e3 && !isMissingTable(e3)) throw e3;
+  const { error: e4 } = await supa.from("mrv_projects").insert({
+    id: DEMO_PROJECT.id, org_id: DEMO_ORG_ID, factory_id: DEMO_FACTORY_ID, name: DEMO_PROJECT.name,
+    start_month: `${DEMO_PROJECT.start}-01`, activities: DEMO_PROJECT.activities, capex_tk: DEMO_PROJECT.capexTk,
+  });
+  if (e4 && !isMissingTable(e4)) throw e4; // migration_3 না চালানো থাকলেও reset চলবে
   return { months: 12, records: records.length };
 }

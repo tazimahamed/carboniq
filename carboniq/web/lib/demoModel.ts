@@ -13,6 +13,9 @@ export const BUYERS = [
 const ORDER_SEASON = [0.9, 0.85, 0.95, 1.0, 1.05, 1.1, 1.0, 0.95, 1.05, 1.1, 1.05, 1.0]; // নভে → অক্টো
 const DIESEL_L = [800, 600, 700, 900, 1800, 3200, 3600, 3400, 2600, 1500, 1000, 800]; // load-shedding গ্রীষ্মে বেশি
 
+/** Demo-র একটা বাস্তবসম্মত দক্ষতা-প্রকল্প: জুলাই ২০২৬ থেকে বিদ্যুৎ ~৭% কম (synthetic, MRV দেখানোর জন্য) */
+export const DEMO_PROJECT = { id: "demo-led-air", name: "LED আলো + compressed air লিক মেরামত", start: "2026-07", activities: ["electricity"], capexTk: 1_500_000, effect: 0.07 };
+
 export type DemoMonth = { month: string; pieces: number; kwh: number; gas: number; diesel: number; temp: number };
 
 export function demoMonths(): DemoMonth[] {
@@ -24,9 +27,10 @@ export function demoMonths(): DemoMonth[] {
     const noise = 1 + 0.02 * Math.sin(i * 2.3);               // নির্দিষ্ট (deterministic) ছোট ওঠানামা
     const pieces = Math.round((250000 * ORDER_SEASON[i]) / 100) * 100;
     const kwh = Math.round((30000 + 0.28 * pieces + 1800 * (temp - 20)) * noise / 10) * 10;
+    const kwhFinal = month >= DEMO_PROJECT.start ? Math.round((kwh * (1 - DEMO_PROJECT.effect)) / 10) * 10 : kwh;
     let gas = Math.round((8000 + 0.13 * pieces) * (2 - noise) / 10) * 10;
     if (month === "2026-08") gas = Math.round(gas * 1.16 / 10) * 10; // ইচ্ছাকৃত অস্বাভাবিকতা: বয়লারে সমস্যা (demo)
-    out.push({ month, pieces, kwh, gas, diesel: DIESEL_L[i], temp });
+    out.push({ month, pieces, kwh: kwhFinal, gas, diesel: DIESEL_L[i], temp });
   }
   return out;
 }

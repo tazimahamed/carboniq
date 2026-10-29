@@ -2,7 +2,8 @@
 import { db } from "@/lib/supabase";
 import { DEMO_FACTORY_ID } from "@/lib/demo";
 import { errMsg } from "@/lib/record";
-import { loadLedger } from "@/lib/ledgerData";
+import { loadLedger, loadVerifications } from "@/lib/ledgerData";
+import { verificationStatus, type VEvent } from "@/lib/verification";
 import { verifyPassport } from "@/lib/passport";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (error) throw error;
     if (!data) return Response.json({ error: "Passport পাওয়া যায়নি" }, { status: 404 });
     const check = verifyPassport(data, await loadLedger());
-    return Response.json({ passport: data, check }, { headers: { "Access-Control-Allow-Origin": "*" } });
+    const v = await loadVerifications("passport", params.id).catch(() => ({ events: [], chainValid: null }));
+    const vs = verificationStatus(v.events as VEvent[], "passport", params.id);
+    const verification = { highest: vs.highest, factory: vs.factory, independent: vs.independent, chainValid: v.chainValid };
+    return Response.json({ passport: data, check, verification }, { headers: { "Access-Control-Allow-Origin": "*" } });
   } catch (err) {
     return Response.json({ error: errMsg(err) }, { status: 400 });
   }

@@ -57,7 +57,7 @@ function ProductPreview() {
             <div className="scanline" />
             <p className="text-[11px] text-white/50">বিদ্যুৎ বিল · নভে ২০২৬</p>
             <div className="mt-3 space-y-1.5">{[80, 95, 60, 85, 70].map((w, i) => <div key={i} className="h-1.5 rounded bg-white/10" style={{ width: `${w}%` }} />)}</div>
-            <div className="mt-3 rounded-lg border border-[var(--lime)]/40 bg-[var(--lime)]/10 px-2.5 py-2">
+            <div className="mt-3 rounded-lg border border-lime/40 bg-lime/10 px-2.5 py-2">
               <p className="text-[10px] text-white/55">ব্যবহৃত ইউনিট</p>
               <p className="text-[15px] font-bold text-[var(--lime)]">126,500 kWh</p>
             </div>
@@ -70,7 +70,7 @@ function ProductPreview() {
             <div className="mt-3 flex h-20 items-end gap-[3px]">
               {BARS.map((h, i) => (
                 <div key={i} className="flex flex-1 flex-col overflow-hidden rounded-t-[3px]" style={{ height: `${h}%` }}>
-                  <div className="bg-[#7ee0a8]/70" style={{ height: "45%" }} /><div className="flex-1 bg-[var(--lime)]/85" />
+                  <div className="bg-[#7ee0a8]/70" style={{ height: "45%" }} /><div className="flex-1 bg-lime/85" />
                 </div>
               ))}
             </div>
@@ -100,8 +100,8 @@ export default function Home() {
       {/* HERO */}
       <Spotlight className="grain relative overflow-hidden bg-[var(--ink)] text-white">
         <div className="grid-bg absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black_40%,transparent_80%)]" />
-        <div className="absolute -right-40 -top-40 h-[560px] w-[560px] rounded-full bg-[var(--leaf)]/30 blur-[130px]" />
-        <div className="absolute -left-40 bottom-0 h-[380px] w-[380px] rounded-full bg-[var(--lime)]/10 blur-[120px]" />
+        <div className="absolute -right-40 -top-40 h-[560px] w-[560px] rounded-full bg-leaf/30 blur-[130px]" />
+        <div className="absolute -left-40 bottom-0 h-[380px] w-[380px] rounded-full bg-lime/10 blur-[120px]" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pb-24 pt-36 lg:grid-cols-[1.05fr_1fr]">
           <div>
             <Reveal>
@@ -144,7 +144,7 @@ export default function Home() {
           <div className="mx-auto grid max-w-6xl grid-cols-2 divide-white/10 px-4 md:grid-cols-4 md:divide-x">
             {[
               { v: 14000, s: "+", l: "উৎপাদন কেন্দ্র Higg FEM ব্যবহার করে" },
-              { v: 149, s: "/149", l: "স্বয়ংক্রিয় পরীক্ষা পাস" },
+              { v: 208, s: "/208", l: "স্বয়ংক্রিয় পরীক্ষা পাস" },
               { v: 256, s: "-bit", l: "SHA hash chain-এ সিল" },
               { v: 0, s: " ৳", l: "AI API খরচ — সব device-এ চলে" },
             ].map((x) => (
@@ -175,11 +175,11 @@ export default function Home() {
           </Reveal>
           <div className="mt-12 grid gap-px overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--line)] md:grid-cols-5">
             {[
-              { k: "Measure", t: "মাপা", d: "বিল OCR, উৎপাদন, scope ১ ও ২, প্রতি পিস নির্গমন", href: "/upload", i: P.scan },
-              { k: "Verify", t: "যাচাই", d: "মিটার রিডিং, hash-ledger আর ০-১০০ Evidence Score", href: "/dashboard", i: P.lock },
-              { k: "Detect", t: "ধরা", d: "প্রত্যাশার চেয়ে বেশি ব্যবহার, load-shedding-এ জেনারেটরের বাড়তি খরচ", href: "/dashboard", i: P.meter },
-              { k: "Optimize", t: "কমানো", d: "বাজেট দিলে সেরা প্রকল্প-সমন্বয়, ৳ সাশ্রয় আর payback", href: "/planner", i: P.sigma },
-              { k: "Share", t: "দেওয়া", d: "Order-ভিত্তিক Carbon Passport, QR দিয়ে buyer নিজে যাচাই করে", href: "/passports", i: P.chain },
+              { k: "Measure", t: "মাপা", d: "বিদ্যুৎ, গ্যাস, LPG, ডিজেলের বিল — ছবি বা online PDF; scope ১ ও ২, প্রতি পিস", href: "/upload", i: P.scan },
+              { k: "Verify", t: "যাচাই", d: "MRV: প্রকল্প না করলে কত হতো বনাম আসল, ৯০% অনিশ্চয়তা, leakage, যাচাইয়ের তিন স্তর", href: "/mrv", i: P.lock },
+              { k: "Detect", t: "ধরা", d: "অস্বাভাবিক ব্যবহার, audit ঝুঁকি, Monte Carlo অনিশ্চয়তা, জেনারেটরের বাড়তি খরচ", href: "/dashboard", i: P.meter },
+              { k: "Optimize", t: "কমানো", d: "Energy Twin-এ what-if, satellite-এ ছাদের solar, বাজেটে সেরা প্রকল্প (NPV)", href: "/twin", i: P.sigma },
+              { k: "Share", t: "দেওয়া", d: "Carbon Passport + QR, কমানোর প্রমাণসহ; CSV আর MCP API", href: "/passports", i: P.chain },
             ].map((x, i) => (
               <Reveal key={x.k} delay={i * 70}>
                 <Link href={x.href} className="group flex h-full flex-col bg-white p-6 transition-colors hover:bg-[var(--paper)]">
@@ -207,7 +207,7 @@ export default function Home() {
           </div>
         </Reveal>
         <div className="relative mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          <div className="absolute left-10 right-10 top-[52px] hidden h-px bg-gradient-to-r from-transparent via-[var(--leaf)]/30 to-transparent lg:block" />
+          <div className="absolute left-10 right-10 top-[52px] hidden h-px bg-gradient-to-r from-transparent via-leaf/30 to-transparent lg:block" />
           {STEPS.map((s, i) => (
             <Reveal key={s.t} delay={i * 90}>
               <TiltCard className="card card-hover relative h-full p-6">
@@ -226,7 +226,7 @@ export default function Home() {
       {/* Feature */}
       <section className="grain relative overflow-hidden bg-[var(--forest)] py-28 text-white">
         <div className="grid-bg absolute inset-0 opacity-60" />
-        <div className="absolute left-1/2 top-0 h-[300px] w-[700px] -translate-x-1/2 rounded-full bg-[var(--lime)]/10 blur-[120px]" />
+        <div className="absolute left-1/2 top-0 h-[300px] w-[700px] -translate-x-1/2 rounded-full bg-lime/10 blur-[120px]" />
         <div className="relative mx-auto max-w-6xl px-4">
           <Reveal>
             <p className="text-sm font-semibold text-[var(--lime)]">কেন CarbonIQ</p>
@@ -236,8 +236,8 @@ export default function Home() {
           <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f, i) => (
               <Reveal key={f.t} delay={(i % 3) * 70}>
-                <TiltCard className="h-full rounded-[18px] border border-white/10 bg-white/[0.04] p-6 transition-colors hover:border-[var(--lime)]/40 hover:bg-white/[0.06]">
-                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--lime)]/12 text-[var(--lime)] ring-1 ring-inset ring-[var(--lime)]/20"><Ico d={f.i} /></span>
+                <TiltCard className="h-full rounded-[18px] border border-white/10 bg-white/[0.04] p-6 transition-colors hover:border-lime/40 hover:bg-white/[0.06]">
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-lime/[0.12] text-[var(--lime)] ring-1 ring-inset ring-lime/20"><Ico d={f.i} /></span>
                   <h3 className="mt-5 text-[17px] font-bold">{f.t}</h3>
                   <p className="mt-2 text-[14px] leading-relaxed text-white/60">{f.d}</p>
                 </TiltCard>
@@ -253,9 +253,9 @@ export default function Home() {
           <Reveal>
             <p className="text-sm font-semibold text-[var(--leaf)]">Developers ও buyer-এর জন্য</p>
             <h2 className="mt-2 text-[34px] font-bold leading-tight tracking-tight sm:text-[40px]">Buyer-এর AI agent সরাসরি প্রমাণ পড়তে পারে</h2>
-            <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-[var(--muted)]">নিজস্ব Model Context Protocol server — ৫টা read-only tool। Buyer-এর সফটওয়্যার বা AI factory-র অনুমতিতে নির্গমন, তার হিসাব আর বিলের hash সরাসরি যাচাই করতে পারে।</p>
+            <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-[var(--muted)]">নিজস্ব Model Context Protocol server — ৭টা read-only tool। Buyer-এর সফটওয়্যার বা AI factory-র অনুমতিতে নির্গমন, তার হিসাব, কমানোর প্রমাণ (MRV), অনিশ্চয়তা আর বিলের hash সরাসরি যাচাই করতে পারে।</p>
             <div className="mt-7 flex flex-wrap gap-2">
-              {["get_emissions", "explain_calculation", "verify_ledger", "get_insights", "get_factors"].map((t) => (
+              {["get_emissions", "explain_calculation", "verify_ledger", "get_insights", "get_reduction", "get_uncertainty", "get_factors"].map((t) => (
                 <span key={t} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 font-mono text-[13px] text-[var(--forest)]">{t}</span>
               ))}
             </div>
@@ -286,7 +286,7 @@ export default function Home() {
         <Reveal>
           <div className="grain relative overflow-hidden rounded-[28px] bg-[var(--ink)] px-8 py-16 text-center text-white">
             <div className="grid-bg absolute inset-0" />
-            <div className="absolute left-1/2 top-0 h-[260px] w-[600px] -translate-x-1/2 rounded-full bg-[var(--leaf)]/30 blur-[100px]" />
+            <div className="absolute left-1/2 top-0 h-[260px] w-[600px] -translate-x-1/2 rounded-full bg-leaf/30 blur-[100px]" />
             <div className="relative">
               <h2 className="text-[32px] font-bold tracking-tight sm:text-[44px]">Buyer-এর email আসার আগেই প্রস্তুত থাকুন</h2>
               <p className="mx-auto mt-4 max-w-xl text-[16px] text-white/60">১২ মাসের demo factory দিয়ে পুরো flow দেখুন — upload থেকে hash-সিল করা report পর্যন্ত।</p>

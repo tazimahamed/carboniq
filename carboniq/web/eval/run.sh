@@ -5,7 +5,7 @@
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"; WEB="$HERE/.."
 TMP="$(mktemp -d)"; mkdir -p "$TMP/lib" "$TMP/eval"
-for f in "$WEB"/lib/{engine,factors,ledger,parseBill,copilot,mcp,insights,assumptions,demoModel,planner,passport,passportRows,passportText,qr}.ts; do
+for f in "$WEB"/lib/{engine,factors,ledger,parseBill,copilot,mcp,insights,assumptions,demoModel,planner,passport,passportRows,passportText,qr,mrv,risk,verification,twin,kb,target,solar}.ts; do
   sed -E 's#from "\./([A-Za-z]+)"#from "./\1.ts"#' "$f" > "$TMP/lib/$(basename "$f")"
 done
 cp "$HERE/run.ts" "$TMP/eval/run.ts"; cp -r "$HERE/fixtures" "$TMP/eval/fixtures"

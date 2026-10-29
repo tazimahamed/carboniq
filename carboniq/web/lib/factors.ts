@@ -2,15 +2,16 @@
 export type Factor = {
   activity: string; unit: string; kgPerUnit: number; scope: 1 | 2 | 3;
   source: string; license: string; year: number; version: string;
+  geography: string; proxy: boolean; method: string;
 };
 
 export const FACTORS: Factor[] = [
   // Grid: Ember Yearly Electricity Data (2025 release, ক্যালেন্ডার বছর ২০২৪) — বাংলাদেশ ৬৯৬ gCO2e/kWh।
   // এটা lifecycle intensity (জ্বালানি সরবরাহ-শৃঙ্খলসহ), T&D loss ছাড়া — report-এ এই সীমা উল্লেখ থাকে।
-  { activity: "electricity", unit: "kWh", kgPerUnit: 0.696, scope: 2, source: "Ember Yearly Electricity Data — Bangladesh 2024, lifecycle intensity (696 gCO2e/kWh)", license: "CC-BY-4.0", year: 2024, version: "ember-2025" },
-  { activity: "natural_gas", unit: "m3", kgPerUnit: 2.02633, scope: 1, source: "UK DESNZ GHG Conversion Factors 2026 — Natural gas (cubic metres)", license: "OGL-3.0", year: 2026, version: "2026.1" },
-  { activity: "diesel", unit: "litre", kgPerUnit: 2.58354, scope: 1, source: "UK DESNZ GHG Conversion Factors 2026 — Diesel (average biofuel blend)", license: "OGL-3.0", year: 2026, version: "2026.1" },
-  { activity: "lpg", unit: "litre", kgPerUnit: 1.55713, scope: 1, source: "UK DESNZ GHG Conversion Factors 2026 — LPG (litres)", license: "OGL-3.0", year: 2026, version: "2026.1" },
+  { activity: "electricity", unit: "kWh", kgPerUnit: 0.696, scope: 2, source: "Ember Yearly Electricity Data — Bangladesh 2024, lifecycle intensity (696 gCO2e/kWh)", license: "CC-BY-4.0", year: 2024, version: "ember-2025", geography: "বাংলাদেশ", proxy: false, method: "location-based grid average, lifecycle" },
+  { activity: "natural_gas", unit: "m3", kgPerUnit: 2.02633, scope: 1, source: "UK DESNZ GHG Conversion Factors 2026 — Natural gas (cubic metres)", license: "OGL-3.0", year: 2026, version: "2026.1", geography: "যুক্তরাজ্য (প্রকাশক) — জ্বালানির রসায়ন একই, তাই proxy", proxy: true, method: "fuel combustion, kg CO2e per unit" },
+  { activity: "diesel", unit: "litre", kgPerUnit: 2.58354, scope: 1, source: "UK DESNZ GHG Conversion Factors 2026 — Diesel (average biofuel blend)", license: "OGL-3.0", year: 2026, version: "2026.1", geography: "যুক্তরাজ্য (প্রকাশক) — proxy; বায়োফুয়েল মিশ্রণ বাংলাদেশে আলাদা হতে পারে", proxy: true, method: "fuel combustion, kg CO2e per unit" },
+  { activity: "lpg", unit: "litre", kgPerUnit: 1.55713, scope: 1, source: "UK DESNZ GHG Conversion Factors 2026 — LPG (litres)", license: "OGL-3.0", year: 2026, version: "2026.1", geography: "যুক্তরাজ্য (প্রকাশক) — proxy", proxy: true, method: "fuel combustion, kg CO2e per unit" },
 ];
 
 export const ACTIVITY_LABEL: Record<string, string> = {

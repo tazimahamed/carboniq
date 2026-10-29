@@ -1,18 +1,29 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Shell from "@/components/Shell";
 import { useRecords } from "@/lib/useRecords";
 import { PROJECTS, evaluate, macc, optimize, type Baseline } from "@/lib/planner";
 import { ASSUME_NOTE } from "@/lib/assumptions";
+import { intensity, monthBn } from "@/lib/insights";
+import { targetRisk } from "@/lib/target";
 
 const lakh = (n: number) => `৳${(n / 100000).toLocaleString("en-IN", { maximumFractionDigits: 1 })} লাখ`;
 const BUDGETS = [1_000_000, 2_500_000, 5_000_000, 10_000_000, 20_000_000];
 
 export default function Planner() {
-  const { rows, total, loading } = useRecords();
+  const { rows, production, total, loading } = useRecords();
   const [budget, setBudget] = useState(5_000_000);
   const [goal, setGoal] = useState<"carbon" | "money">("carbon");
   const [manual, setManual] = useState<string[] | null>(null);
+  const [geo, setGeo] = useState<{ kwp: number; kwhYr: number; capex: number; src?: string } | null>(null);
+  // Geo-র Rooftop Solar Scanner থেকে পাঠানো ছাদ থাকলে solar প্রকল্পে সেটাই ব্যবহার
+  useEffect(() => {
+    try {
+      const g = JSON.parse(localStorage.getItem("carboniq_solar") || "null");
+      const sp = PROJECTS.find((p) => p.id === "solar");
+      if (g && sp && g.kwp > 0 && g.kwhYr > 0) { sp.name = `ছাদে solar (${g.kwp} kWp, আপনার ছাদ)`; sp.what = "Geo-তে আঁকা ছাদ ও NASA POWER সূর্যালোক থেকে"; sp.capexTk = g.capex; sp.solarKwhYr = g.kwhYr; setGeo(g); }
+    } catch { /* storage বন্ধ */ }
+  }, []);
 
   const base: Baseline = useMemo(() => {
     const months = Array.from(new Set(rows.map((r) => r.period_month.slice(0, 7)))).sort().slice(-12);
@@ -21,12 +32,12 @@ export default function Planner() {
     return { kwh: sum("electricity"), gasM3: sum("natural_gas"), dieselL: sum("diesel") };
   }, [rows]);
 
-  const best = useMemo(() => optimize(base, budget, goal), [base, budget, goal]);
-  const other = useMemo(() => optimize(base, budget, goal === "carbon" ? "money" : "carbon"), [base, budget, goal]);
+  const best = useMemo(() => optimize(base, budget, goal), [base, budget, goal, geo]);
+  const other = useMemo(() => optimize(base, budget, goal === "carbon" ? "money" : "carbon"), [base, budget, goal, geo]);
   const sameAsOther = best.ids.slice().sort().join() === other.ids.slice().sort().join();
   const chosen = manual ?? best.ids;
-  const res = useMemo(() => evaluate(PROJECTS.filter((p) => chosen.includes(p.id)), base), [chosen, base]);
-  const curve = useMemo(() => macc(base), [base]);
+  const res = useMemo(() => evaluate(PROJECTS.filter((p) => chosen.includes(p.id)), base), [chosen, base, geo]);
+  const curve = useMemo(() => macc(base), [base, geo]);
   const totalT = total();
   const toggle = (id: string) => setManual((m) => { const cur = m ?? best.ids; return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]; });
   const overBudget = res.capex > budget;
@@ -53,13 +64,13 @@ export default function Planner() {
             <p className="mt-4 text-sm font-bold">লক্ষ্য</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
               {([["carbon", "সবচেয়ে বেশি কার্বন কমানো"], ["money", "সবচেয়ে বেশি টাকা বাঁচানো"]] as const).map(([k, l]) => (
-                <button key={k} onClick={() => { setGoal(k); setManual(null); }} className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${goal === k ? "border-[var(--leaf)] bg-emerald-50 ring-2 ring-[var(--leaf)]/20" : "border-[var(--line)] hover:border-black/20"}`}>{l}</button>
+                <button key={k} onClick={() => { setGoal(k); setManual(null); }} className={`rounded-xl border px-3 py-2.5 text-left text-sm transition ${goal === k ? "border-[var(--leaf)] bg-emerald-50 ring-2 ring-leaf/20" : "border-[var(--line)] hover:border-black/20"}`}>{l}</button>
               ))}
             </div>
           </div>
 
           <div className="grain relative overflow-hidden rounded-[18px] bg-[var(--ink)] p-6 text-white">
-            <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[var(--leaf)]/30 blur-3xl" />
+            <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-leaf/30 blur-3xl" />
             <div className="relative flex items-center gap-2">
               <p className="text-sm text-white/60">{manual ? "আপনার বাছাই" : "সেরা পরিকল্পনা"}</p>
               {manual && <button onClick={() => setManual(null)} className="ml-auto text-xs text-[var(--lime)] hover:underline">সেরাটায় ফিরুন</button>}
@@ -97,6 +108,8 @@ export default function Planner() {
         </div>
       </div>
 
+      <TargetCard rows={rows} production={production} planCutPct={totalT ? (res.tYr / totalT) * 100 : 0} />
+
       {/* MACC */}
       <div className="card mt-4 p-6">
         <h2 className="font-bold">Marginal Abatement Cost Curve (MACC)</h2>
@@ -108,7 +121,7 @@ export default function Planner() {
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-        প্রকল্পের খরচ ও সাশ্রয়ের হার সাধারণ শিল্প-অনুমান (আনুমানিক); আসল প্রকল্পের আগে energy audit দরকার। একাধিক প্রকল্পের শতাংশ সাশ্রয় গুণফলে যোগ হয়, যাতে দ্বিগুণ গোনা না হয়। "কার্বন" লক্ষ্যে বছরে সর্বোচ্চ টন কমানো, "টাকা" লক্ষ্যে প্রকল্পের পুরো আয়ুষ্কালের সর্বোচ্চ নিট লাভ (NPV, ১০% discount rate) বাছা হয়। ভিত্তি: শেষ ১২ মাসের বিদ্যুৎ {base.kwh.toLocaleString()} kWh, গ্যাস {base.gasM3.toLocaleString()} m³, ডিজেল {base.dieselL.toLocaleString()} লিটার। {ASSUME_NOTE}।
+        প্রকল্পের খরচ ও সাশ্রয়ের হার সাধারণ শিল্প-অনুমান (আনুমানিক); আসল প্রকল্পের আগে energy audit দরকার। একাধিক প্রকল্পের শতাংশ সাশ্রয় গুণফলে যোগ হয়, যাতে দ্বিগুণ গোনা না হয়। "কার্বন" লক্ষ্যে বছরে সর্বোচ্চ টন কমানো, "টাকা" লক্ষ্যে প্রকল্পের পুরো আয়ুষ্কালের সর্বোচ্চ নিট লাভ (NPV, ১০% discount rate) বাছা হয়। ভিত্তি: শেষ ১২ মাসের বিদ্যুৎ {base.kwh.toLocaleString()} kWh, গ্যাস {base.gasM3.toLocaleString()} m³, ডিজেল {base.dieselL.toLocaleString()} লিটার। {ASSUME_NOTE}।{geo ? ` Solar প্রকল্প: Geo-তে আঁকা আপনার ছাদ (${geo.kwp} kWp, বছরে ${Math.round(geo.kwhYr / 1000)} MWh, ${geo.src === "nasa" ? "NASA POWER সূর্যালোক" : "অফলাইন গড় সূর্যালোক"})।` : ""}
       </p>
     </Shell>
   );
@@ -157,4 +170,44 @@ function MaccChart({ curve, chosen, total }: { curve: Bar[]; chosen: string[]; t
 function niceStep(raw: number) {
   const p = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / p;
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+function TargetCard({ rows, production, planCutPct }: { rows: Parameters<typeof intensity>[0]; production: Parameters<typeof intensity>[1]; planCutPct: number }) {
+  const series = useMemo(() => intensity(rows, production), [rows, production]);
+  const [pct, setPct] = useState(10);
+  const last = series.at(-1)?.month ?? "2026-10";
+  const opts = useMemo(() => { const [y, m] = last.split("-").map(Number); return [6, 12, 18].map((k) => { const d = new Date(Date.UTC(y, m - 1 + k, 1)); return d.toISOString().slice(0, 7); }); }, [last]);
+  const [when, setWhen] = useState("");
+  const tm = when || opts[1];
+  const r = targetRisk(series, pct, tm, planCutPct);
+  if (!r) return null;
+  const lo = Math.min(r.lo, r.target, r.withPlan) * 0.97, hi = Math.max(r.hi, r.baseline, r.current) * 1.02;
+  const pos = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`;
+  const tone = r.risk === "বেশি" ? "bg-red-100 text-red-800" : r.risk === "মাঝারি" ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800";
+  return (
+    <div className="card mt-4 p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <div><h2 className="font-bold">Buyer-এর লক্ষ্য · মিসের ঝুঁকি</h2><p className="text-xs text-[var(--muted)]">প্রতি পিসের নির্গমনের মাসিক ধারা থেকে পূর্বাভাস (৯০% সীমাসহ) — তথ্য কম, তাই নিশ্চয়তা নয়, ঝুঁকি</p></div>
+        <span className={`ml-auto rounded-full px-3 py-1 text-xs font-bold ${tone}`}>ঝুঁকি: {r.risk}</span>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2">লক্ষ্য: প্রতি পিসে
+          <select value={pct} onChange={(e) => setPct(Number(e.target.value))} className="rounded-lg border border-[var(--line)] bg-white px-2 py-1">{[5, 10, 15, 20, 30].map((v) => <option key={v} value={v}>{v}%</option>)}</select> কম</label>
+        <label className="flex items-center gap-2">সময়সীমা
+          <select value={tm} onChange={(e) => setWhen(e.target.value)} className="rounded-lg border border-[var(--line)] bg-white px-2 py-1">{opts.map((o) => <option key={o} value={o}>{monthBn(o)}</option>)}</select></label>
+      </div>
+      <div className="relative mt-8 h-14">
+        <div className="absolute inset-x-0 top-6 h-1 rounded-full bg-[var(--paper)]" />
+        <div className="absolute top-4 h-5 rounded-full bg-sky-200/70" style={{ left: pos(r.lo), width: `calc(${pos(r.hi)} - ${pos(r.lo)})` }} title="৯০% সম্ভাব্য সীমা" />
+        {[["baseline", r.baseline, "bg-gray-400", "শুরু"], ["current", r.current, "bg-[var(--ink)]", "এখন"], ["proj", r.projected, "bg-sky-600", "এই ধারায়"], ["plan", r.withPlan, "bg-[var(--leaf)]", "পরিকল্পনাসহ"]].map(([k, v, c, l], i) => (
+          <div key={k as string} className="absolute -translate-x-1/2 text-center" style={{ left: pos(v as number), top: i % 2 ? 30 : -18 }}>
+            {i % 2 ? <><span className={`mx-auto block h-3 w-3 rounded-full ${c}`} /><span className="whitespace-nowrap text-[10px] text-[var(--muted)]">{l as string} {(v as number).toFixed(3)}</span></> : <><span className="whitespace-nowrap text-[10px] text-[var(--muted)]">{l as string} {(v as number).toFixed(3)}</span><span className={`mx-auto mt-0.5 block h-3 w-3 rounded-full ${c}`} /></>}
+          </div>
+        ))}
+        <div className="absolute top-1 h-10 w-0.5 bg-red-500" style={{ left: pos(r.target) }}><span className="absolute -top-4 left-1 whitespace-nowrap text-[10px] font-bold text-red-600">লক্ষ্য {r.target.toFixed(3)}</span></div>
+      </div>
+      <p className="mt-6 text-sm">{r.text}। পরিকল্পনার প্রকল্পগুলো নিলে অনুমান <b>{r.withPlan.toFixed(3)} kg/পিস</b> {r.withPlan <= r.target ? "— লক্ষ্যের নিচে ✓" : "— এখনো লক্ষ্যের উপরে, বাজেট বাড়ান বা আরো প্রকল্প নিন"}।</p>
+      <p className="mt-1 text-[11px] text-[var(--muted)]">শুরু = প্রথম ৩ মাসের গড়; এখন = শেষ ৩ মাসের গড়; ধারা প্রতি মাসে {r.slopePctPerMonth > 0 ? "+" : ""}{r.slopePctPerMonth.toFixed(2)}%। পরিকল্পনার প্রভাব = বার্ষিক কমানো ÷ মোট নির্গমন (আনুমানিক)।</p>
+    </div>
+  );
 }

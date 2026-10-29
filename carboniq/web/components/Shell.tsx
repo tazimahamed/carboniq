@@ -12,7 +12,7 @@ export default function Shell({ eyebrow, title, sub, right, children, wide = fal
     <>
       <section className="relative overflow-hidden bg-[var(--ink)] text-white print:hidden">
         <div className="grid-bg absolute inset-0 opacity-60" />
-        <div className="absolute -right-24 -top-24 h-[260px] w-[260px] rounded-full bg-[var(--leaf)]/25 blur-[90px]" />
+        <div className="absolute -right-24 -top-24 h-[260px] w-[260px] rounded-full bg-leaf/25 blur-[90px]" />
         <div className={`relative mx-auto flex ${w} flex-wrap items-center gap-4 px-4 pb-7 pt-24`}>
           <div className="min-w-0">
             <p className="text-[13px] text-white/50">{eyebrow}</p>

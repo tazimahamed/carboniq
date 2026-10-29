@@ -5,6 +5,8 @@ import Shell from "@/components/Shell";
 import QR from "@/components/QR";
 import { useRecords } from "@/lib/useRecords";
 import { buyerShare, monthBn } from "@/lib/insights";
+import VerificationLadder from "@/components/VerificationLadder";
+import { verificationStatus, type VEvent } from "@/lib/verification";
 
 type P = { id: string; buyer: string; order_ref: string; pieces: number; period_from: string; period_to: string; payload: { kg_per_piece: number; order_tco2e: number; evidence: { score: number } }; revoked: boolean; created_at: string };
 
@@ -19,9 +21,18 @@ export default function Passports() {
   const [err, setErr] = useState("");
   const [made, setMade] = useState<string | null>(null);
   const [copied, setCopied] = useState("");
+  const [projects, setProjects] = useState<{ id: string; name: string; start: string }[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [events, setEvents] = useState<VEvent[]>([]);
+  const [chain, setChain] = useState<boolean | null>(null);
+  const [verifyFor, setVerifyFor] = useState<string | null>(null);
+  const loadEvents = () => fetch("/api/verifications?target_type=passport", { cache: "no-store" }).then((r) => r.json()).then((j) => { setEvents(j.events ?? []); setChain(j.chainValid ?? null); }).catch(() => {});
 
   const loadList = () => fetch("/api/passports", { cache: "no-store" }).then((r) => r.json()).then((j) => setList(j.passports ?? [])).catch(() => {});
-  useEffect(() => { setOrigin(window.location.origin); loadList(); }, []);
+  useEffect(() => {
+    setOrigin(window.location.origin); loadList(); loadEvents();
+    fetch("/api/projects", { cache: "no-store" }).then((r) => r.json()).then((j) => setProjects(j.projects ?? [])).catch(() => {});
+  }, []);
   useEffect(() => {
     if (months.length && !f.from) setF((x) => ({ ...x, from: months[Math.max(0, months.length - 3)], to: months.at(-1)!, buyer: buyers[0] ?? "" }));
   }, [months, buyers, f.from]);
@@ -33,7 +44,7 @@ export default function Passports() {
   async function create() {
     setErr(""); setBusy(true);
     try {
-      const j = await fetch("/api/passports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...f, pieces: Number(f.pieces) }) }).then((r) => r.json());
+      const j = await fetch("/api/passports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...f, pieces: Number(f.pieces), project_id: projectId || undefined }) }).then((r) => r.json());
       if (j.error) setErr(j.error); else { setMade(j.id); loadList(); }
     } catch { setErr("Server উত্তর দেয়নি"); }
     setBusy(false);
@@ -66,10 +77,10 @@ export default function Passports() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-sm font-medium">Order নম্বর
-                  <input value={f.order_ref} onChange={(e) => setF({ ...f, order_ref: e.target.value })} placeholder="যেমন NA-2026-0418" className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2.5 outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-[var(--leaf)]/20" />
+                  <input value={f.order_ref} onChange={(e) => setF({ ...f, order_ref: e.target.value })} placeholder="যেমন NA-2026-0418" className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2.5 outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-leaf/20" />
                 </label>
                 <label className="text-sm font-medium">পিস
-                  <input value={f.pieces} onChange={(e) => setF({ ...f, pieces: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="যেমন 40000" className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2.5 tabular-nums outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-[var(--leaf)]/20" />
+                  <input value={f.pieces} onChange={(e) => setF({ ...f, pieces: e.target.value.replace(/\D/g, "") })} inputMode="numeric" placeholder="যেমন 40000" className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2.5 tabular-nums outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-leaf/20" />
                 </label>
                 <label className="text-sm font-medium">উৎপাদনের সময় — থেকে
                   <select value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5">{months.map((m) => <option key={m} value={m}>{monthBn(m)}</option>)}</select>
@@ -78,6 +89,15 @@ export default function Passports() {
                   <select value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5">{months.map((m) => <option key={m} value={m}>{monthBn(m)}</option>)}</select>
                 </label>
               </div>
+              {projects.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-sm font-medium">নির্গমন কমানোর প্রমাণ যুক্ত করবেন? <span className="font-normal text-[var(--muted)]">(ঐচ্ছিক, MRV থেকে)</span></p>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setProjectId("")} className={`rounded-full border px-3 py-1.5 text-xs ${!projectId ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)]"}`}>না</button>
+                    {projects.map((p) => <button key={p.id} onClick={() => setProjectId(p.id)} className={`rounded-full border px-3 py-1.5 text-xs ${projectId === p.id ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)] hover:border-[var(--leaf)]"}`}>{p.name}</button>)}
+                  </div>
+                </div>
+              )}
               {mine && (
                 <div className="grid grid-cols-3 gap-3 rounded-xl bg-[var(--paper)] p-4 text-center">
                   <div><p className="text-lg font-extrabold">{mine.kgPerPiece.toFixed(3)}</p><p className="text-[11px] text-[var(--muted)]">kg CO₂e / পিস</p></div>
@@ -132,9 +152,12 @@ export default function Passports() {
                   <p className="text-sm font-semibold">{p.buyer} · {p.order_ref}{p.revoked && <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-700">বাতিল</span>}</p>
                   <p className="text-xs text-[var(--muted)]">{p.pieces.toLocaleString()} পিস · {p.payload.kg_per_piece} kg/পিস · {p.payload.order_tco2e} টন · <span className="font-mono">{p.id}</span></p>
                 </div>
+                {(() => { const v = verificationStatus(events, "passport", p.id); return <span className={`rounded-full px-2 py-0.5 text-[10px] ${v.highest === "independent" ? "bg-emerald-100 text-emerald-800" : v.highest === "factory_review" ? "bg-sky-50 text-sky-800" : "bg-[var(--paper)] text-[var(--muted)]"}`}>{v.highest === "independent" ? "স্বাধীনভাবে যাচাইকৃত" : v.highest === "factory_review" ? "কারখানা যাচাই করেছে" : "শুধু system-এর হিসাব"}</span>; })()}
+                <button onClick={() => setVerifyFor(verifyFor === p.id ? null : p.id)} className="rounded-full border border-[var(--line)] px-3 py-1.5 text-xs hover:border-[var(--leaf)]">যাচাই</button>
                 <Link href={`/p/${p.id}`} className="rounded-full border border-[var(--line)] px-3 py-1.5 text-xs hover:border-[var(--leaf)]">দেখুন</Link>
                 <button onClick={() => copy(p.id)} className="rounded-full border border-[var(--line)] px-3 py-1.5 text-xs hover:border-[var(--leaf)]">{copied === p.id ? "✓" : "Link"}</button>
                 <button onClick={() => revoke(p.id, !p.revoked)} className="rounded-full border border-[var(--line)] px-3 py-1.5 text-xs hover:border-red-300 hover:text-red-700">{p.revoked ? "আবার চালু" : "বাতিল"}</button>
+                {verifyFor === p.id && <div className="w-full"><VerificationLadder vs={verificationStatus(events, "passport", p.id)} targetType="passport" targetId={p.id} chain={chain} onAdded={loadEvents} /></div>}
               </li>
             ))}
           </ul>

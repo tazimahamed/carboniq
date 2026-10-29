@@ -1,6 +1,8 @@
 "use client";
 import { useMemo } from "react";
 import { useRecords } from "@/lib/useRecords";
+import ReportTrust from "@/components/ReportTrust";
+import { FACTORS } from "@/lib/factors";
 import Shell from "@/components/Shell";
 import { LogoMark } from "@/components/Nav";
 
@@ -10,7 +12,7 @@ const FUEL: Record<string, string> = { electricity: "বিদ্যুৎ (grid
 const fmt = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 export default function Report() {
-  const { rows, valid, error, loading, total } = useRecords();
+  const { rows, production, valid, error, loading, total } = useRecords();
 
   const r = useMemo(() => {
     const months = Array.from(new Set(rows.map((x) => x.period_month.slice(0, 7)))).sort();
@@ -135,7 +137,7 @@ export default function Report() {
               </tr></thead>
               <tbody>
                 {r.byMonth.map((x, i) => (
-                  <tr key={x.m} className={`border-b border-[var(--line)] ${i % 2 ? "bg-[var(--paper)]/60" : ""}`}>
+                  <tr key={x.m} className={`border-b border-[var(--line)] ${i % 2 ? "bg-paper/60" : ""}`}>
                     <td className="py-2">{mLabel(x.m)}</td>
                     <td className="text-right tabular-nums">{fmt(x.s1)}</td>
                     <td className="text-right tabular-nums">{fmt(x.s2)}</td>
@@ -153,6 +155,7 @@ export default function Report() {
               <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-[var(--muted)]">
                 <li>GHG Protocol Corporate Standard অনুযায়ী। নির্গমন = কার্যক্রমের পরিমাণ × গুণক।</li>
                 <li>হিসাবে কোনো AI ব্যবহার হয়নি; একই input-এ সবসময় একই ফল।</li>
+                <li>DESNZ (যুক্তরাজ্য)-এর জ্বালানি গুণক বাংলাদেশে proxy হিসেবে ব্যবহৃত — জ্বালানির রসায়ন একই, তবে বায়োফুয়েল মিশ্রণ আলাদা হতে পারে।</li>
                 <li>Scope 2 location-based। Grid গুণক Ember-এর lifecycle intensity — রক্ষণশীল; T&amp;D loss অন্তর্ভুক্ত নয়।</li>
               </ul>
             </div>
@@ -160,7 +163,7 @@ export default function Report() {
               <h3 className="text-[13px] font-bold text-[var(--leaf)]">৬. গুণকের উৎস</h3>
               <ul className="mt-3 space-y-2 text-[13px] leading-relaxed">
                 {r.fuels.map((f) => (
-                  <li key={f.a}><span className="font-medium">{FUEL[f.a]}:</span> <span className="text-[var(--muted)]">{f.f!.factor_source} ({f.f!.factor_version})</span></li>
+                  <li key={f.a}><span className="font-medium">{FUEL[f.a]}:</span> <span className="text-[var(--muted)]">{f.f!.factor_source} ({f.f!.factor_version}) · {FACTORS.find((x) => x.activity === f.a)?.geography}</span></li>
                 ))}
               </ul>
             </div>
@@ -180,6 +183,8 @@ export default function Report() {
             <p className="mt-4 text-[11px] text-[var(--muted)]">শেষ ledger hash (SHA-256) — এই hash দিয়ে পুরো chain যাচাই করা যায়:</p>
             <p className="mt-1 break-all rounded-md bg-white px-3 py-2 font-mono text-[11px]">{lastHash}</p>
           </section>
+
+          <ReportTrust rows={rows} production={production} />
         </div>
 
         <footer className="border-t border-[var(--line)] px-10 py-5 text-[11px] leading-relaxed text-[var(--muted)] print:px-8">

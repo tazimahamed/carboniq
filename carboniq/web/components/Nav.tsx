@@ -3,16 +3,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const LINKS = [
+const PRIMARY = [
   { href: "/upload", label: "Upload" },
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/report", label: "Report" },
-  { href: "/passports", label: "Passport" },
+  { href: "/mrv", label: "MRV" },
+  { href: "/twin", label: "Twin" },
   { href: "/planner", label: "Planner" },
+  { href: "/passports", label: "Passport" },
   { href: "/copilot", label: "Copilot" },
-  { href: "/developers", label: "API · MCP" },
-  { href: "/evaluation", label: "Eval" },
 ];
+const MORE = [
+  { href: "/geo", label: "Geo · Solar", sub: "ছাদের solar আর grid-এর উৎস" },
+  { href: "/report", label: "Report", sub: "PDF রিপোর্ট" },
+  { href: "/developers", label: "API · MCP", sub: "অন্য system-এর জন্য" },
+  { href: "/evaluation", label: "Eval", sub: "স্বয়ংক্রিয় পরীক্ষার ফল" },
+];
+const LINKS = [...PRIMARY, ...MORE];
 
 export function LogoMark({ className = "h-8 w-8" }: { className?: string }) {
   return (
@@ -27,6 +33,7 @@ export function LogoMark({ className = "h-8 w-8" }: { className?: string }) {
 export default function Nav() {
   const path = usePathname();
   const [scrolled, setScrolled] = useState(false);
+  const [more, setMore] = useState(false);
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 12);
     on(); window.addEventListener("scroll", on, { passive: true });
@@ -35,14 +42,14 @@ export default function Nav() {
 
   return (
     <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 print:hidden ${
-      scrolled ? "border-b border-white/10 bg-[var(--ink)]/85 shadow-[0_8px_30px_-12px_rgba(0,0,0,.5)] backdrop-blur-xl" : "bg-transparent"}`}>
+      scrolled ? "border-b border-white/10 bg-ink/85 shadow-[0_8px_30px_-12px_rgba(0,0,0,.5)] backdrop-blur-xl" : "bg-transparent"}`}>
       <nav className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4">
         <Link href="/" className="mr-5 flex items-center gap-2.5">
           <LogoMark />
           <span className="text-[17px] font-extrabold tracking-tight text-white">CarbonIQ<span className="ml-1 font-semibold text-[var(--lime)]">BD</span></span>
         </Link>
-        <div className="hidden items-center gap-0.5 md:flex">
-          {LINKS.map((l) => {
+        <div className="hidden items-center gap-0.5 lg:flex">
+          {PRIMARY.map((l) => {
             const active = path === l.href;
             return (
               <Link key={l.href} href={l.href} aria-current={active ? "page" : undefined}
@@ -52,13 +59,31 @@ export default function Nav() {
               </Link>
             );
           })}
+          <div className="relative" onMouseLeave={() => setMore(false)}>
+            <button onClick={() => setMore((v) => !v)} onMouseEnter={() => setMore(true)} aria-expanded={more}
+              className={`relative rounded-full px-3.5 py-2 text-[14px] transition-colors ${MORE.some((l) => l.href === path) ? "text-white" : "text-white/60 hover:text-white"}`}>
+              আরো ▾
+              {MORE.some((l) => l.href === path) && <span className="absolute inset-x-3.5 -bottom-0.5 h-0.5 rounded-full bg-[var(--lime)]" />}
+            </button>
+            {more && (
+              <div className="absolute right-0 top-full w-60 pt-2">
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-ink/95 p-1.5 shadow-2xl backdrop-blur-xl">
+                  {MORE.map((l) => (
+                    <Link key={l.href} href={l.href} onClick={() => setMore(false)} className={`block rounded-xl px-3 py-2 transition hover:bg-white/10 ${path === l.href ? "bg-white/10" : ""}`}>
+                      <span className="block text-sm text-white">{l.label}</span><span className="block text-[11px] text-white/50">{l.sub}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <span className="ml-auto hidden items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200 sm:flex">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />DEMO
         </span>
         <Link href="/upload" className="btn-lime ml-auto rounded-full px-4 py-2 text-sm font-bold transition sm:ml-2">শুরু করুন →</Link>
       </nav>
-      <div className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
+      <div className="flex gap-1 overflow-x-auto px-4 pb-2 lg:hidden">
         {LINKS.map((l) => (
           <Link key={l.href} href={l.href} className={`whitespace-nowrap rounded-full px-3 py-1 text-xs ${
             path === l.href ? "bg-white/15 text-white" : "text-white/70"}`}>{l.label}</Link>

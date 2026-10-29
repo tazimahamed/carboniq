@@ -13,7 +13,7 @@ type Msg = {
   template?: string;
 };
 
-const SUGGEST = ["মোট নির্গমন কত?", "প্রতি পিসে কত?", "কোনো সমস্যা আছে?", "Evidence Score কত?", "কোন মাসে সবচেয়ে বেশি?", "মে মাসে কেন বাড়ল?", "Ledger কি অক্ষত?", "কোন গুণক ব্যবহার হয়েছে?"];
+const SUGGEST = ["মোট নির্গমন কত?", "প্রকল্পে কত কমেছে?", "মোট নির্গমন কতটা নিশ্চিত?", "প্রতি পিসে কত?", "কোনো সমস্যা আছে?", "IPMVP Option C কীভাবে কাজ করে?", "বিদ্যুতের গুণক কেন 0.696?", "Ledger কি অক্ষত?"];
 
 async function callTool(c: ToolCall): Promise<any> {
   const j = await fetch("/api/mcp", {
@@ -130,7 +130,7 @@ export default function Copilot() {
           {ai === "loading" && <div className="w-56"><p className="text-xs text-white/60">AI প্রস্তুত হচ্ছে · {aiProgress.pct}%</p>
             <div className="mt-1 h-1 overflow-hidden rounded-full bg-gray-200"><div className="h-full bg-[var(--leaf)] transition-all" style={{ width: `${Math.max(3, aiProgress.pct)}%` }} /></div></div>}
           {ai === "failed" && <button onClick={enableAi} className="text-xs text-white/60 hover:underline">AI চালু হয়নি · আবার চেষ্টা করুন</button>}
-          {ai === "on" && <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--lime)]/15 px-3 py-1.5 text-xs font-medium text-[var(--lime)]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />AI চালু</span>}
+          {ai === "on" && <span className="inline-flex items-center gap-1.5 rounded-full bg-lime/15 px-3 py-1.5 text-xs font-medium text-[var(--lime)]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />AI চালু</span>}
         </div>
             }>
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
@@ -142,7 +142,13 @@ export default function Copilot() {
               <div key={i} className="flex gap-3">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--ink)] text-sm font-bold text-[var(--lime)]">C</span>
                 <div className="max-w-[85%]">
-                  <div className="rounded-2xl rounded-tl-md border border-[var(--line)] bg-[var(--paper)]/70 px-4 py-3 text-sm leading-relaxed"><Rich text={m.text} /></div>
+                  <div className="rounded-2xl rounded-tl-md border border-[var(--line)] bg-paper/70 px-4 py-3 text-sm leading-relaxed"><Rich text={m.text} /></div>
+                  {m.sources?.some((x) => x.startsWith("kb:")) && (
+                    <div className="mt-1.5 flex flex-wrap gap-2 pl-1 text-[11px]">
+                      {m.sources.filter((x) => x.startsWith("kb:")).map((x) => { const u = x.slice(3); return <a key={u} href={u} target={u.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="rounded-full border border-[var(--line)] bg-white px-2.5 py-0.5 text-[var(--leaf)] hover:border-[var(--leaf)]">📄 মূল দলিল ↗</a>; })}
+                      <span className="text-gray-400">জ্ঞানভান্ডার থেকে খোঁজা (BM25, browser-এ)</span>
+                    </div>
+                  )}
                   {m.calls && m.calls.length > 0 && (
                     <div className="mt-1.5 flex items-center gap-2 pl-1 text-[11px] text-gray-400">
                       <span title={m.calls.map((c) => `${c.name} ${JSON.stringify(c.arguments)}`).join("\n")}>
@@ -168,7 +174,7 @@ export default function Copilot() {
                 <p className="text-center text-xs text-[var(--muted)]">যেমন জিজ্ঞেস করতে পারেন</p>
                 <div className="mx-auto mt-3 grid max-w-lg gap-2 sm:grid-cols-2">
                   {[["মোট নির্গমন কত?", "১২ মাসের মোট, scope অনুযায়ী"], ["প্রতি পিসে কত?", "buyer-এর আসল প্রশ্ন"], ["কোনো সমস্যা আছে?", "অস্বাভাবিকতা ও জেনারেটর"], ["Evidence Score কত?", "ডেটা কতটা প্রমাণসহ"]].map(([q, h]) => (
-                    <button key={q} onClick={() => ask(q)} className="rounded-xl border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--leaf)]/50 hover:bg-[var(--paper)]">
+                    <button key={q} onClick={() => ask(q)} className="rounded-xl border border-[var(--line)] bg-white p-3 text-left transition hover:border-leaf/50 hover:bg-[var(--paper)]">
                       <span className="block text-sm font-semibold">{q}</span><span className="block text-xs text-[var(--muted)]">{h}</span>
                     </button>
                   ))}
@@ -199,7 +205,7 @@ export default function Copilot() {
               </button>
             )}
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={listening ? "শুনছি... বাংলায় বলুন" : "প্রশ্ন লিখুন বা mic চেপে বলুন..."}
-              className="flex-1 rounded-full border border-black/10 px-4 py-2.5 text-sm outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-[var(--leaf)]/20" />
+              className="flex-1 rounded-full border border-black/10 px-4 py-2.5 text-sm outline-none focus:border-[var(--leaf)] focus:ring-2 focus:ring-leaf/20" />
             <button disabled={busy || !input.trim()} className="btn-lime rounded-full px-5 text-sm font-bold transition disabled:opacity-30">পাঠান</button>
           </form>
         </div>

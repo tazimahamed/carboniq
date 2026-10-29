@@ -1,3 +1,4 @@
+import { KB_MIN_SCORE, search } from "./kb";
 // বাংলা Copilot: প্রশ্ন বোঝা → কোন MCP tool → উত্তর তৈরি (template)। কোনো সংখ্যা বানানো হয় না — সব tool-এর ফল থেকে।
 const BN = "০১২৩৪৫৬৭৮৯";
 export const toEn = (s: string) => s.replace(/[০-৯]/g, (d) => String(BN.indexOf(d)));
@@ -30,6 +31,9 @@ export type Intent =
   | { kind: "evidence" }
   | { kind: "intensity" }
   | { kind: "alerts" }
+  | { kind: "knowledge"; q: string }
+  | { kind: "reduction" }
+  | { kind: "uncertainty" }
   | { kind: "help" };
 
 /** প্রশ্ন থেকে মাস বের করা: "নভেম্বর ২০২৬", "2026-11", "Nov 2026"। বছর না দিলে সাম্প্রতিক বছর ধরা হয় */
@@ -48,6 +52,11 @@ export function route(question: string): Intent {
   const activity = ACTIVITY.find(([re]) => re.test(q))?.[1];
   const year = q.match(/20\d{2}/)?.[0];
 
+  if (/(কত|how much).*(কমেছে|কমলো|কমানো|সাশ্রয়|বাঁচ)|প্রকল্পে.*(কম|সাশ্রয়)|reduction|savings|সাশ্রয় কত|কমানোর প্রমাণ/.test(q) && !/কী\s*$|মানে/.test(q)) return { kind: "reduction" };
+  if (/(সম্ভাব্য|কত).*(সীমা|range)|অনিশ্চয়তা কত|কতটা নিশ্চিত|audit.*(কোন|কোথায়|ঝুঁকি)|ঝুঁকি কত|risk score/.test(q)) return { kind: "uncertainty" };
+  // পদ্ধতি/মানদণ্ডের প্রশ্ন → জ্ঞানভান্ডার (উৎসসহ)
+  if (/mrv|ipmvp|baseline|বেসলাইন|leakage|rebound|location.?based|market.?based|monte\s*carlo|অনিশ্চয়তা|uncertaint|ashrae|cv\s*\(?rmse|digital product|\bdpp\b|csrd|স্বাধীন যাচাই|যাচাইয়ের স্তর|তিন স্তর|proxy|desnz কেন|কেন.*(গুণক|৬৯৬|0\.696)|(গুণক|factor).*কেন|ভাগের পদ্ধতি|allocation|footprint|hash কী|হ্যাশ কী|কী প্রমাণ করে/.test(q)) return { kind: "knowledge", q: question };
+  if (/scope|স্কোপ/.test(q) && /কী|কি|মানে|what|mean|পার্থক্য|difference/.test(q)) return { kind: "knowledge", q: question };
   if (/evidence|score|স্কোর|বিশ্বাসযোগ্য|মান কেমন|কতটা প্রমাণ/.test(q)) return { kind: "evidence" };
   if (/পিস|piece|per unit|প্রতি একক|intensity/.test(q)) return { kind: "intensity" };
   if (/অস্বাভাবিক|সমস্যা|anomal|alert|সতর্ক|জেনারেটর|generator|load.?shedding|লোডশেডিং|ক্ষতি|নষ্ট|অপচয়/.test(q)) return { kind: "alerts" };
@@ -62,6 +71,8 @@ export function route(question: string): Intent {
     if (year) return { kind: "total", from: `${year}-01`, to: `${year}-12` };
     return { kind: "total" };
   }
+  // কিছু না মিললে: জ্ঞানভান্ডারে যথেষ্ট মিল থাকলে সেখান থেকে, নইলে সাহায্য
+  if (search(question, 1)[0]?.score >= KB_MIN_SCORE) return { kind: "knowledge", q: question };
   return { kind: "help" };
 }
 
@@ -76,6 +87,9 @@ export function toolsFor(intent: Intent): ToolCall[] {
     case "verify": return [{ name: "verify_ledger", arguments: {} }];
     case "factors": return [{ name: "get_factors", arguments: {} }];
     case "evidence": case "intensity": case "alerts": return [{ name: "get_insights", arguments: {} }];
+    case "knowledge": return [];
+    case "reduction": return [{ name: "get_reduction", arguments: {} }];
+    case "uncertainty": return [{ name: "get_uncertainty", arguments: {} }];
     default: return [];
   }
 }
@@ -165,6 +179,28 @@ export function compose(intent: Intent, results: any[]): Answer {
       const g = r.generator;
       if (g?.litres) lines.push(`• Load-shedding: জেনারেটরে ${toBn(g.litres.toLocaleString())} লিটার ডিজেল, grid-এর তুলনায় আনুমানিক বাড়তি ৳${toBn(Math.round(g.est_extra_cost_tk / 1000).toLocaleString("en-IN"))} হাজার।`);
       return { text: lines.length ? `যা চোখে পড়েছে:\n${lines.join("\n")}\n\n(${r.assumptions})` : "কোনো অস্বাভাবিকতা পাওয়া যায়নি।", sources: ["get_insights"] };
+    }
+    case "reduction": {
+      const lk = r.leakage?.length ? `\n\n⚠ ${r.leakage[0]}` : "";
+      return {
+        text: `**${r.project}** (${monthBn(r.start)} থেকে):\nপ্রকল্পের জ্বালানিতে **${toBn(r.claimed_tco2e)} ± ${toBn(r.claimed_u90)} টন CO₂e** কমেছে (৯০% আস্থা)।\nসব জ্বালানি মিলিয়ে নিট ${toBn(r.net_tco2e)} ± ${toBn(r.net_u90)} টন; প্রতি পিসে ${toBn(r.intensity_change_pct)}%।${lk}\n\n${r.preliminary ? "এটা প্রাথমিক অনুমান (১২ মাসের কম তথ্য)। " : ""}পদ্ধতি: baseline মাসগুলো দিয়ে model শিখে "প্রকল্প না করলে কত হতো" বনাম আসল বিল। বিস্তারিত MRV পাতায়।`,
+        sources: ["get_reduction"], key: [String(r.claimed_tco2e)],
+      };
+    }
+    case "uncertainty": {
+      return {
+        text: `মোট নির্গমন **${toBn(r.total_tco2e)} টন**, ৯৫% সম্ভাব্য সীমা ${toBn(r.range95[0])} – ${toBn(r.range95[1])} টন (±${toBn(r.rel_pct)}%, ${toBn(r.simulations)} বার Monte Carlo)।\nAudit ঝুঁকি ${toBn(r.audit_risk.score)}/১০০ (${r.audit_risk.level}) — ${r.audit_risk.priority}।${r.high_risk_records.length ? `\nআগে দেখুন: ${r.high_risk_records.slice(0, 2).map((x: any) => `${monthBn(x.month)}-এর ${ACT_BN[x.activity] ?? x.activity}`).join(", ")}` : ""}\n\nমূল বিল আর মিটার রিডিং যোগ করলে সীমা ছোট হয়। ঝুঁকি মানে audit-এর অগ্রাধিকার, প্রতারণার প্রমাণ নয়।`,
+        sources: ["get_uncertainty"], key: [String(r.total_tco2e)],
+      };
+    }
+    case "knowledge": {
+      const hits = search(intent.q, 2).filter((h) => h.score >= KB_MIN_SCORE);
+      if (!hits.length) return { text: "এই প্রশ্নের উত্তর CarbonIQ-এর উৎস-তালিকায় (GHG Protocol, IPMVP, ASHRAE 14, IPCC, Ember, DESNZ ও পদ্ধতি নোট) যথেষ্ট পাওয়া যায়নি — তাই অনুমান করে বলছি না।", sources: [] };
+      const main = hits[0], extra = hits[1] && hits[1].score >= main.score * 0.75 ? hits[1] : null;
+      return {
+        text: `${main.p.text}\n\n📄 উৎস: **${main.p.title}** — ${main.p.section}` + (extra ? `\n\nসম্পর্কিত: ${extra.p.text}\n📄 উৎস: **${extra.p.title}** — ${extra.p.section}` : "") + "\n\n(মূল দলিলের সারসংক্ষেপ, হুবহু উদ্ধৃতি নয়)",
+        sources: [main.p.url, ...(extra ? [extra.p.url] : [])].map((u) => `kb:${u}`),
+      };
     }
     case "scope":
       return { text: "**Scope 1** = factory-তে নিজে জ্বালানি পোড়ানো থেকে সরাসরি নির্গমন: গ্যাস বয়লার, ডিজেল জেনারেটর, LPG।\n**Scope 2** = কেনা বিদ্যুৎ থেকে পরোক্ষ নির্গমন: grid-এর বিদ্যুৎ যে power plant-এ তৈরি হয় সেখানকার নির্গমন।\n**Scope 3** = supplier, পরিবহন, বর্জ্য ইত্যাদি (CarbonIQ-এর roadmap-এ আছে)।\n\nসূত্র: GHG Protocol Corporate Standard।", sources: [] };

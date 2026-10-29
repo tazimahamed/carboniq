@@ -1,6 +1,7 @@
 // MCP endpoint: POST /api/mcp (Streamable HTTP, stateless, JSON উত্তর)
 import { handleRpc, SERVER_INFO, TOOLS } from "@/lib/mcp";
-import { loadLedger, loadProduction } from "@/lib/ledgerData";
+import { loadLedger, loadProduction, loadProjects } from "@/lib/ledgerData";
+import { clientKey, rateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,16 @@ export function GET() {
 
 export async function POST(req: Request) {
   if (!authorized(req)) return Response.json({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "Unauthorized" } }, { status: 401, headers: CORS });
+  const rl = rateLimit("mcp:" + clientKey(req), 60);
+  if (!rl.ok) return Response.json({ jsonrpc: "2.0", id: null, error: { code: -32029, message: `Rate limit: মিনিটে ৬০টা অনুরোধ। ${rl.retryAfter} সেকেন্ড পরে চেষ্টা করুন` } }, { status: 429, headers: { ...CORS, "Retry-After": String(rl.retryAfter) } });
   let body: unknown;
   try { body = await req.json(); } catch {
     return Response.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, { status: 400, headers: CORS });
   }
   const batch = Array.isArray(body);
   const msgs = batch ? (body as any[]) : [body];
-  const out = (await Promise.all(msgs.map((m) => handleRpc(m, loadLedger, loadProduction)))).filter(Boolean);
+  if (msgs.length > 20) return Response.json({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "একসাথে সর্বোচ্চ ২০টা অনুরোধ" } }, { status: 400, headers: CORS });
+  const out = (await Promise.all(msgs.map((m) => handleRpc(m, loadLedger, loadProduction, async () => (await loadProjects()).projects)))).filter(Boolean);
   if (!out.length) return new Response(null, { status: 202, headers: CORS }); // শুধু notification
   return Response.json(batch ? out : out[0], { headers: CORS });
 }

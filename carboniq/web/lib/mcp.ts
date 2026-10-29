@@ -4,10 +4,14 @@ import { FACTORS } from "./factors";
 import { verifyChain } from "./ledger";
 import { anomalies, evidenceScore, generator, intensity, type InProd } from "./insights";
 import { ledgerToRows, foldEvidence, meterOk } from "./passportRows";
+import { mrv, type MrvProject } from "./mrv";
+import { monteCarlo, periodRisk, recordRisks } from "./risk";
+import { DEMO_PROJECT } from "./demoModel";
 
 export type LedgerEntry = { id: number | string; payload: Record<string, any>; prev_hash: string; hash: string };
 export type LedgerSource = () => Promise<LedgerEntry[]>;
 export type ProductionSource = () => Promise<InProd[]>;
+export type ProjectSource = () => Promise<MrvProject[]>;
 
 export const SERVER_INFO = { name: "carboniq-bd", title: "CarbonIQ BD", version: "0.2.0" };
 const SUPPORTED = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -56,6 +60,20 @@ export const TOOLS = [
     name: "get_insights",
     title: "বুদ্ধিমত্তা ও প্রমাণের মান",
     description: "Evidence Score (০-১০০, CarbonIQ-এর নিজস্ব মান-নির্দেশক), প্রতি পিস নির্গমন (kg CO2e), প্রত্যাশার চেয়ে অস্বাভাবিক বেশি ব্যবহারের মাস (৳ ক্ষতিসহ, আনুমানিক) আর ডিজেল জেনারেটরের বাড়তি খরচ।",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: "get_reduction",
+    title: "নির্গমন কমানো যাচাই (MRV)",
+    description: "একটা দক্ষতা-প্রকল্পে আসলে কত CO2e কমেছে: baseline regression থেকে 'প্রকল্প না করলে কত হতো' বনাম আসল, ৯০% অনিশ্চয়তা, leakage আর প্রতি পিসের পরিবর্তনসহ। IPMVP Option C-র ধারণা।",
+    inputSchema: { type: "object", properties: { project_id: { type: "string", description: "না দিলে প্রথম প্রকল্প" } }, additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: "get_uncertainty",
+    title: "অনিশ্চয়তা ও audit ঝুঁকি",
+    description: "মোট নির্গমনের ৯৫% সম্ভাব্য সীমা (Monte Carlo, IPCC পরিসর) আর কোন record-এ audit আগে দরকার (ব্যাখ্যাযোগ্য নিয়মে ঝুঁকি score)।",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -139,7 +157,7 @@ const content = (data: any, isError = false) => ({
 });
 
 /** একটা JSON-RPC message → উত্তর (notification হলে null) */
-export async function handleRpc(msg: RpcReq, load: LedgerSource, loadProd: ProductionSource = async () => []): Promise<object | null> {
+export async function handleRpc(msg: RpcReq, load: LedgerSource, loadProd: ProductionSource = async () => [], loadProj: ProjectSource = async () => [DEMO_PROJECT]): Promise<object | null> {
   const isNotification = msg.id === undefined;
   if (msg?.jsonrpc !== "2.0" || typeof msg.method !== "string") return isNotification ? null : fail(msg?.id, -32600, "Invalid Request");
   if (isNotification) return null; // যেমন notifications/initialized
@@ -177,6 +195,28 @@ export async function handleRpc(msg: RpcReq, load: LedgerSource, loadProd: Produ
             anomalies: anomalies(rr, prod).map((a) => ({ month: a.month, activity: a.activity, pct_above_expected: Math.round(a.pct * 1000) / 10, actual: a.actual, expected: Math.round(a.expected), est_loss_tk: Math.round(a.tkLoss), extra_tco2e: Math.round(a.extraT * 100) / 100, hint: a.detail })),
             generator: { litres: g.total.litres, est_extra_cost_tk: Math.round(g.total.tkExtra), extra_tco2e_vs_grid: Math.round(g.total.tExtra * 100) / 100, peak_month: g.peak?.month ?? null },
             assumptions: "আনুমানিক দাম: বিদ্যুৎ ৳১১/kWh, গ্যাস ৳৩০/m³, ডিজেল ৳১০৫/লিটার",
+          }));
+        }
+        if (name === "get_reduction") {
+          const projs = await loadProj(), pj = args?.project_id ? projs.find((p) => p.id === args.project_id) : projs[0];
+          if (!pj) throw new ToolError("প্রকল্প পাওয়া যায়নি");
+          const r = mrv(pj, ledgerToRows(rows), await loadProd()), r1 = (n: number) => Math.round(n * 10) / 10;
+          return ok(msg.id, content({
+            project: pj.name, start: pj.start, status: r.status, preliminary: r.preliminary, verdict: r.verdict,
+            claimed_tco2e: r1(r.claimedT), claimed_u90: r1(r.claimedUT), net_tco2e: r1(r.netT), net_u90: r1(r.netUT),
+            leakage: r.leakage.map((l) => l.text), not_verifiable: r.unverifiable,
+            intensity_change_pct: r1(r.intensity.changePct), baseline: r.baseline, post: r.post,
+            models: r.fuels.map((f) => ({ fuel: f.activity, ok: f.modelOk, r2: f.fit ? Math.round(f.fit.r2 * 1000) / 1000 : null, cvrmse_pct: f.fit ? r1(f.fit.cvrmse * 100) : null })),
+            method: "IPMVP Option C-র ধারণা; OLS baseline; ৯০% prediction interval; ASHRAE Guideline 14 regression মানদণ্ড (মাসিক CV(RMSE) ≤ ২০%)",
+          }));
+        }
+        if (name === "get_uncertainty") {
+          const prod = await loadProd(), mc = monteCarlo(rows), rk = recordRisks(rows, prod, new Date().toISOString().slice(0, 7)), pr = periodRisk(rk), r1 = (n: number) => Math.round(n * 10) / 10;
+          return ok(msg.id, content({
+            total_tco2e: r1(mc.central), range95: [r1(mc.lo), r1(mc.hi)], rel_pct: r1(mc.relPct), simulations: mc.n,
+            audit_risk: { score: pr.score, level: pr.level, priority: pr.priority, reasons: pr.reasons.slice(0, 3) },
+            high_risk_records: rk.filter((x) => x.level === "বেশি").slice(0, 5).map((x) => ({ month: x.month, activity: x.activity, score: x.score, flags: x.flags.map((f) => f.text) })),
+            note: "ঝুঁকি = audit অগ্রাধিকার, প্রতারণার প্রমাণ নয়",
           }));
         }
         if (name === "verify_ledger") {

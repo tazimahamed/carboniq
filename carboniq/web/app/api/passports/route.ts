@@ -2,7 +2,7 @@
 import { db } from "@/lib/supabase";
 import { DEMO_FACTORY_ID, DEMO_ORG_ID } from "@/lib/demo";
 import { errMsg } from "@/lib/record";
-import { loadLedger } from "@/lib/ledgerData";
+import { loadLedger, loadProjects } from "@/lib/ledgerData";
 import { buildPassport, newPassportId } from "@/lib/passport";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,9 @@ export async function POST(req: Request) {
     const entries = await loadLedger();
     const { data: prod, error: e1 } = await db().from("production").select("period_month, buyer, pieces").eq("factory_id", DEMO_FACTORY_ID);
     if (e1) throw new Error("উৎপাদনের table পাওয়া যায়নি — supabase/migration_2 চালান");
-    const p = buildPassport(entries, prod ?? [], { buyer, order_ref, pieces, from, to });
+    const project = b.project_id ? (await loadProjects()).projects.find((x: { id: string }) => x.id === b.project_id) ?? null : null;
+    if (b.project_id && !project) throw new Error("প্রকল্প পাওয়া যায়নি");
+    const p = buildPassport(entries, prod ?? [], { buyer, order_ref, pieces, from, to, project });
     const id = newPassportId();
     const { error } = await db().from("passports").insert({
       id, org_id: DEMO_ORG_ID, factory_id: DEMO_FACTORY_ID, buyer, order_ref, pieces,

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-29T22:29:03.331Z",
+  "generated_at": "2026-10-29T23:39:42.852Z",
   "node": "v22.23.4",
   "suites": [
     {
@@ -264,7 +264,7 @@
           "pass": true
         },
         {
-          "name": "tools/list → ৫টা tool, প্রত্যেকটায় inputSchema",
+          "name": "tools/list → ৭টা tool, প্রত্যেকটায় inputSchema",
           "pass": true
         },
         {
@@ -443,12 +443,12 @@
         {
           "name": "Scope 1 মানে কী?",
           "pass": true,
-          "detail": "{\"kind\":\"scope\"}"
+          "detail": "{\"kind\":\"knowledge\",\"q\":\"Scope 1 মানে কী?\"}"
         },
         {
           "name": "what is scope 2",
           "pass": true,
-          "detail": "{\"kind\":\"scope\"}"
+          "detail": "{\"kind\":\"knowledge\",\"q\":\"what is scope 2\"}"
         },
         {
           "name": "হ্যালো",
@@ -606,12 +606,12 @@
         {
           "name": "১২ মাসের প্রতি পিস হিসাব, ০.৫–০.৮ kg-এর মধ্যে",
           "pass": true,
-          "detail": "0.652 0.639 0.618 0.626 0.646 0.662 0.689 0.699 0.668 0.699 0.650 0.650"
+          "detail": "0.652 0.639 0.618 0.626 0.646 0.662 0.689 0.699 0.646 0.676 0.629 0.628"
         },
         {
           "name": "Buyer-দের ভাগ যোগ করলে মোট নির্গমন হয় (কিছু হারায় না)",
           "pass": true,
-          "detail": "1976.26 vs 1976.26"
+          "detail": "1953.16 vs 1953.16"
         },
         {
           "name": "আগস্ট ২০২৬-এর গ্যাস অস্বাভাবিকতা ধরে",
@@ -645,32 +645,32 @@
         {
           "name": "৳10 লাখ, লক্ষ্য কার্বন: সর্বোত্তম ও বাজেটের মধ্যে",
           "pass": true,
-          "detail": "air,steam · 87t"
+          "detail": "air,steam · 86t"
         },
         {
           "name": "৳10 লাখ, লক্ষ্য টাকা: সর্বোত্তম ও বাজেটের মধ্যে",
           "pass": true,
-          "detail": "hvac,steam · 78t"
+          "detail": "hvac,steam · 77t"
         },
         {
           "name": "৳50 লাখ, লক্ষ্য কার্বন: সর্বোত্তম ও বাজেটের মধ্যে",
           "pass": true,
-          "detail": "led,air,hvac,econ,steam,meter · 266t"
+          "detail": "led,air,hvac,econ,steam,meter · 263t"
         },
         {
           "name": "৳50 লাখ, লক্ষ্য টাকা: সর্বোত্তম ও বাজেটের মধ্যে",
           "pass": true,
-          "detail": "led,air,hvac,econ,steam,meter · 266t"
+          "detail": "led,air,hvac,econ,steam,meter · 263t"
         },
         {
           "name": "৳200 লাখ, লক্ষ্য কার্বন: সর্বোত্তম ও বাজেটের মধ্যে",
           "pass": true,
-          "detail": "led,air,vfd,solar,econ,steam,meter · 565t"
+          "detail": "led,air,vfd,solar,econ,steam,meter · 561t"
         },
         {
           "name": "৳200 লাখ, লক্ষ্য টাকা: সর্বোত্তম ও বাজেটের মধ্যে",
           "pass": true,
-          "detail": "led,vfd,hvac,solar,econ,steam,meter · 556t"
+          "detail": "led,vfd,hvac,solar,econ,steam,meter · 553t"
         },
         {
           "name": "দুই প্রকল্প একসাথে ≤ আলাদা যোগফল (দ্বিগুণ গোনা নেই)",
@@ -756,7 +756,7 @@
         {
           "name": "নতুন passport → যাচাই সফল",
           "pass": true,
-          "detail": "0.6728 kg/পিস, 26.91 t"
+          "detail": "0.6508 kg/পিস, 26.03 t"
         },
         {
           "name": "order_tco2e = পিস × kg/পিস",
@@ -849,10 +849,330 @@
       ],
       "passed": 10,
       "total": 10
+    },
+    {
+      "id": "mrv",
+      "title": "MRV: কমানো যাচাই (scientific)",
+      "what": "Synthetic তথ্যে জানা প্রভাব বসিয়ে দেখা হয় model সেটা ফিরে পায় কিনা; leakage, দুর্বল model আর উৎপাদন-কমার ফাঁদ ধরা পড়ে কিনা",
+      "cases": [
+        {
+          "name": "OLS coefficient হাতে করা হিসাবের সাথে মেলে (Sxy/Sxx = 29.9/10 = 2.99, b₀ = 2.03)",
+          "pass": true,
+          "detail": "2.030, 2.990"
+        },
+        {
+          "name": "৯০% t মান (df=5) = 2.015",
+          "pass": true
+        },
+        {
+          "name": "Demo-তে বসানো ৭% সাশ্রয় → ৯০% সীমার ভেতরে ফিরে পায়",
+          "pass": true,
+          "detail": "মাপা 22.7 ± 7.1 t, আসল 23.1 t"
+        },
+        {
+          "name": "বিদ্যুতের baseline model ASHRAE 14 পাস করে",
+          "pass": true
+        },
+        {
+          "name": "ডিজেল (load-shedding নির্ভর) model দুর্বল → নিট থেকে বাদ, সতর্কতা দেখায়",
+          "pass": true
+        },
+        {
+          "name": "আগস্টের গ্যাস-বৃদ্ধি leakage হিসেবে ধরা পড়ে, নিট < দাবি",
+          "pass": true
+        },
+        {
+          "name": "প্রভাব না থাকলে সাশ্রয় দাবি করে না (তথ্য কম → insufficient/অনিশ্চিত)",
+          "pass": true,
+          "detail": "not-significant"
+        },
+        {
+          "name": "উৎপাদন কমায় মোট কমলেও প্রতি পিসে বাড়লে আলাদা করে দেখায়",
+          "pass": true,
+          "detail": "প্রতি পিসে 6.5%"
+        },
+        {
+          "name": "Baseline ৬ মাসের কম → দাবি করে না",
+          "pass": true
+        },
+        {
+          "name": "তাপমাত্রা ডেটা ঢাকার ১২ মাসের climatology",
+          "pass": true
+        }
+      ],
+      "passed": 10,
+      "total": 10
+    },
+    {
+      "id": "risk",
+      "title": "ঝুঁকি (audit অগ্রাধিকার) ও Monte Carlo",
+      "what": "প্রতিটা ঝুঁকির নিয়ম আলাদা করে পরীক্ষা; অনিশ্চয়তা পুনরুৎপাদনযোগ্য ও যুক্তিসঙ্গত কিনা",
+      "cases": [
+        {
+          "name": "বিল নেই → +৩০",
+          "pass": true
+        },
+        {
+          "name": "বিল আর মিটার মিলেছে → ঝুঁকি ০",
+          "pass": true
+        },
+        {
+          "name": "বিলের সংখ্যায় গরমিল → 'বেশি' ঝুঁকি",
+          "pass": true
+        },
+        {
+          "name": "OCR-এর সংখ্যা হাতে বদলানো → flag",
+          "pass": true
+        },
+        {
+          "name": "গোল সংখ্যা (১,০০,০০০) → flag",
+          "pass": true
+        },
+        {
+          "name": "ভবিষ্যতের মাস → flag",
+          "pass": true
+        },
+        {
+          "name": "Demo: অস্বাভাবিক মাস (আগস্টের গ্যাস) বাড়তি ঝুঁকি পায়",
+          "pass": true
+        },
+        {
+          "name": "সময়ের ঝুঁকি নির্গমনের ওজনে গড়, কারণসহ",
+          "pass": true,
+          "detail": "31 · মাঝারি"
+        },
+        {
+          "name": "Monte Carlo: একই seed-এ একই ফল (পুনরুৎপাদনযোগ্য)",
+          "pass": true
+        },
+        {
+          "name": "Monte Carlo: ৯৫% সীমার ভেতরে মূল হিসাব, সীমা যুক্তিসঙ্গত (২–১০%)",
+          "pass": true,
+          "detail": "1953 t, ±3.1%"
+        },
+        {
+          "name": "মিটার-যাচাই করা তথ্যে অনিশ্চয়তা কম",
+          "pass": true,
+          "detail": "3.0% বনাম 3.1%"
+        }
+      ],
+      "passed": 11,
+      "total": 11
+    },
+    {
+      "id": "verification",
+      "title": "যাচাইয়ের তিন স্তর",
+      "what": "একটা স্তর আরেকটাকে বোঝায় না; ইতিহাস hash-chain-এ বাঁধা",
+      "cases": [
+        {
+          "name": "কোনো ঘটনা নেই → শুধু system-এর হিসাব",
+          "pass": true
+        },
+        {
+          "name": "শুধু স্বাধীন যাচাই থাকলে কারখানার যাচাই 'হয়েছে' দেখায় না",
+          "pass": true
+        },
+        {
+          "name": "অন্য passport-এর যাচাই এখানে গোনা হয় না",
+          "pass": true
+        },
+        {
+          "name": "যাচাই-ইতিহাস বদলালে hash-chain ধরা পড়ে",
+          "pass": true
+        }
+      ],
+      "passed": 4,
+      "total": 4
+    },
+    {
+      "id": "mcp_mrv",
+      "title": "MCP + Copilot: কমানো ও অনিশ্চয়তা",
+      "what": "get_reduction / get_uncertainty tool সঠিক সংখ্যা দেয়, Copilot সঠিক tool বাছে আর বানানো সংখ্যা দেয় না",
+      "cases": [
+        {
+          "name": "get_reduction = সরাসরি MRV হিসাব (এক জায়গার সংখ্যা অন্য জায়গায় মেলে)",
+          "pass": true,
+          "detail": "22.7 ± 7.1"
+        },
+        {
+          "name": "get_uncertainty: মোট = ledger-এর যোগফল, ৯৫% সীমা আছে",
+          "pass": true
+        },
+        {
+          "name": "প্রকল্পে কত কমেছে? → reduction",
+          "pass": true,
+          "detail": "reduction"
+        },
+        {
+          "name": "LED প্রকল্পে কত সাশ্রয় হলো → reduction",
+          "pass": true,
+          "detail": "reduction"
+        },
+        {
+          "name": "মোট নির্গমন কতটা নিশ্চিত? → uncertainty",
+          "pass": true,
+          "detail": "uncertainty"
+        },
+        {
+          "name": "audit কোথায় আগে দরকার → uncertainty",
+          "pass": true,
+          "detail": "uncertainty"
+        },
+        {
+          "name": "reduction: উত্তরে বানানো সংখ্যা নেই",
+          "pass": true,
+          "detail": "ok"
+        },
+        {
+          "name": "uncertainty: উত্তরে বানানো সংখ্যা নেই",
+          "pass": true,
+          "detail": "ok"
+        }
+      ],
+      "passed": 8,
+      "total": 8
+    },
+    {
+      "id": "rag",
+      "title": "Copilot: উৎসসহ উত্তর (BM25 RAG)",
+      "what": "পদ্ধতির প্রশ্নে সঠিক উৎস-অংশ খোঁজে কিনা; উৎসে না থাকলে বানিয়ে বলে না",
+      "cases": [
+        {
+          "name": "IPMVP Option C কীভাবে কাজ করে? → ipmvp-c",
+          "pass": true,
+          "detail": "knowledge · ipmvp-c (12.0)"
+        },
+        {
+          "name": "scope 2 location based মানে কী? → scope2-location",
+          "pass": true,
+          "detail": "knowledge · scope2-location (13.3)"
+        },
+        {
+          "name": "বিদ্যুতের গুণক কেন 0.696? → ember-grid",
+          "pass": true,
+          "detail": "knowledge · ember-grid (9.5)"
+        },
+        {
+          "name": "Monte Carlo অনিশ্চয়তা কী? → monte-carlo",
+          "pass": true,
+          "detail": "knowledge · monte-carlo (11.2)"
+        },
+        {
+          "name": "leakage কী? → leakage",
+          "pass": true,
+          "detail": "knowledge · leakage (4.1)"
+        },
+        {
+          "name": "passport-এ ভাগের পদ্ধতি কী? → passport",
+          "pass": true,
+          "detail": "knowledge · passport (10.0)"
+        },
+        {
+          "name": "hash কী প্রমাণ করে? → hash",
+          "pass": true,
+          "detail": "knowledge · hash (8.8)"
+        },
+        {
+          "name": "স্বাধীন যাচাই আর কারখানার যাচাইয়ের পার্থক্য → verification-levels",
+          "pass": true,
+          "detail": "knowledge · verification-levels (9.5)"
+        },
+        {
+          "name": "CV(RMSE) কত হলে model ভালো? → ashrae14",
+          "pass": true,
+          "detail": "knowledge · ashrae14 (14.1)"
+        },
+        {
+          "name": "উত্তর নেই এমন প্রশ্ন: বাংলাদেশের প্রধানমন্ত্রী কে? → বানিয়ে বলে না",
+          "pass": true,
+          "detail": "help"
+        },
+        {
+          "name": "উত্তর নেই এমন প্রশ্ন: ক্রিকেট খেলা কবে? → বানিয়ে বলে না",
+          "pass": true,
+          "detail": "help"
+        },
+        {
+          "name": "উত্তর নেই এমন প্রশ্ন: আজ আবহাওয়া কেমন? → বানিয়ে বলে না",
+          "pass": true,
+          "detail": "help"
+        },
+        {
+          "name": "অপ্রাসঙ্গিক প্রশ্নে BM25 score সীমার নিচে",
+          "pass": true
+        }
+      ],
+      "passed": 13,
+      "total": 13
+    },
+    {
+      "id": "twin",
+      "title": "Energy Twin, buyer-লক্ষ্য ও Rooftop Solar",
+      "what": "Twin আসল তথ্যে কতটা মেলে (backtest); what-if দিক ঠিক কিনা; solar-এর জ্যামিতি ও সূত্র হাতে মেলানো",
+      "cases": [
+        {
+          "name": "Twin backtest: বিদ্যুতের গড় ভুল < ১০%",
+          "pass": true,
+          "detail": "3.5%"
+        },
+        {
+          "name": "Twin backtest: গ্যাসের গড় ভুল < ১০%",
+          "pass": true,
+          "detail": "3.1%"
+        },
+        {
+          "name": "উৎপাদন বাড়লে নির্গমন বাড়ে, প্রতি পিসে কমে (স্থির লোড ভাগ হয়)",
+          "pass": true
+        },
+        {
+          "name": "গরম বাড়লে বিদ্যুৎ বাড়ে",
+          "pass": true
+        },
+        {
+          "name": "Load-shedding বাড়লে ডিজেল ও খরচ বাড়ে",
+          "pass": true
+        },
+        {
+          "name": "Grid ২০% পরিষ্কার হলে শুধু Scope 2 ২০% কমে",
+          "pass": true
+        },
+        {
+          "name": "প্রকল্প চালু করলে নির্গমন ও খরচ কমে",
+          "pass": true
+        },
+        {
+          "name": "Zone-ভাগের যোগফল = মোট",
+          "pass": true
+        },
+        {
+          "name": "ছাদের ক্ষেত্রফল: ১০০×৬০ m আয়তক্ষেত্র → ৬,০০০ m² (±০.৫%)",
+          "pass": true,
+          "detail": "6000 m²"
+        },
+        {
+          "name": "Solar সূত্র হাতে মেলে: ৬,০০০×০.৭×০.২ = ৮৪০ kWp; ৮৪০×৪.৬×৩৬৫×০.৭৮ kWh",
+          "pass": true
+        },
+        {
+          "name": "Solar নিজের ব্যবহার দিনের লোডে সীমিত (৬০%)",
+          "pass": true
+        },
+        {
+          "name": "লক্ষ্য: পূর্বাভাসের সীমার সাথে ঝুঁকির শ্রেণী সামঞ্জস্যপূর্ণ",
+          "pass": true,
+          "detail": "বেশি · লক্ষ্য 0.573 · সীমা 0.584–0.759"
+        },
+        {
+          "name": "পরিকল্পনা ১০% কমালে পূর্বাভাসও ১০% কমে",
+          "pass": true
+        }
+      ],
+      "passed": 13,
+      "total": 13
     }
   ],
   "summary": {
-    "passed": 149,
-    "total": 149
+    "passed": 208,
+    "total": 208
   }
 }
