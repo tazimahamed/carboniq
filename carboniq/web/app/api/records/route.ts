@@ -10,7 +10,7 @@ export async function GET() {
     const { data, error } = await db().from("ledger_entries").select("id, payload, hash")
       .eq("factory_id", DEMO_FACTORY_ID).order("id", { ascending: true });
     if (error) throw error;
-    const records = foldEvidence(data ?? []).map((e) => ({
+    const records = foldEvidence((data ?? []) as { id: number; hash: string; payload: Record<string, any> }[]).map((e) => ({
       id: String(e.id), hash: e.hash,
       activity: e.payload.activity, quantity: e.payload.quantity, unit: e.payload.unit,
       period_month: e.payload.period_month, scope: e.payload.scope, kg_co2e: e.payload.kg_co2e,

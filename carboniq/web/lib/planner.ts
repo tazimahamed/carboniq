@@ -30,7 +30,9 @@ export type Baseline = { kwh: number; gasM3: number; dieselL: number };
 const f = (a: string) => FACTORS.find((x) => x.activity === a)!.kgPerUnit;
 
 /** একসাথে বাছা প্রকল্পের মোট প্রভাব — শতাংশ সাশ্রয় গুণফলে যোগ হয় (দ্বিগুণ গোনা এড়াতে), solar বাকি grid বিদ্যুৎ থেকে কমে */
-export function evaluate(sel: Project[], base: Baseline) {
+export type Evaluation = { capex: number; tkYr: number; tYr: number; npv: number; tLife: number; kwhSaved: number; gasSaved: number; dieselSaved: number; paybackYears: number };
+
+export function evaluate(sel: Project[], base: Baseline): Evaluation {
   const keep = (k: "elecPct" | "gasPct" | "dieselPct") => sel.reduce((a, p) => a * (1 - (p[k] ?? 0)), 1);
   const kwhAfterEff = base.kwh * keep("elecPct");
   const solar = Math.min(kwhAfterEff * 0.6, sel.reduce((a, p) => a + (p.solarKwhYr ?? 0), 0)); // দিনের লোডের বেশি ধরি না
@@ -61,7 +63,7 @@ export function macc(base: Baseline) {
 }
 
 /** সব সমন্বয় পরীক্ষা (২^১০ = ১০২৪) — বাজেটের মধ্যে সর্বোচ্চ লক্ষ্য; ছোট সমস্যা তাই নিশ্চিত সর্বোত্তম ফল */
-export function optimize(base: Baseline, budgetTk: number, goal: "carbon" | "money" = "carbon") {
+export function optimize(base: Baseline, budgetTk: number, goal: "carbon" | "money" = "carbon"): Evaluation & { ids: string[] } {
   let best = { mask: 0, score: goal === "carbon" ? -1 : 0, res: evaluate([], base) };
   const n = PROJECTS.length;
   for (let mask = 0; mask < 1 << n; mask++) {
