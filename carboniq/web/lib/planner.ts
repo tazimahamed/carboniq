@@ -40,8 +40,16 @@ export function evaluate(sel: Project[], base: Baseline) {
   const tkYr = kwhSaved * ASSUME.gridTkPerKwh + gasSaved * ASSUME.gasTkPerM3 + dieselSaved * ASSUME.dieselTkPerL;
   const tYr = (kwhSaved * f("electricity") + gasSaved * f("natural_gas") + dieselSaved * f("diesel")) / 1000;
   const capex = sel.reduce((a, p) => a + p.capexTk, 0);
-  return { capex, tkYr, tYr, kwhSaved, gasSaved, dieselSaved, paybackYears: tkYr > 0 ? capex / tkYr : Infinity };
+  // পুরো আয়ুষ্কালের নিট লাভ (NPV, ১০% discount): একসাথে করলে সাশ্রয় একটু কমে, তাই প্রতিটা প্রকল্পের একক সাশ্রয় অনুপাতে ছোট করে ধরা হয়
+  const solo = sel.map((p) => ({ p, tk: sel.length === 1 ? tkYr : evaluate([p], base).tkYr }));
+  const soloSum = solo.reduce((a, x) => a + x.tk, 0) || 1;
+  const npv = solo.reduce((a, x) => a + x.tk * (tkYr / soloSum) * annuity(x.p.lifeYears), 0) - capex;
+  const tLife = solo.reduce((a, x) => a + (x.tk / soloSum) * tYr * x.p.lifeYears, 0);
+  return { capex, tkYr, tYr, npv, tLife, kwhSaved, gasSaved, dieselSaved, paybackYears: tkYr > 0 ? capex / tkYr : Infinity };
 }
+
+export const DISCOUNT = 0.10;
+export const annuity = (years: number, r = DISCOUNT) => (1 - Math.pow(1 + r, -years)) / r;
 
 /** প্রতিটা প্রকল্প একা: MACC-এর জন্য — প্রতি টন কমাতে বছরে নিট কত টাকা (ঋণাত্মক = লাভ) */
 export function macc(base: Baseline) {
@@ -54,14 +62,15 @@ export function macc(base: Baseline) {
 
 /** সব সমন্বয় পরীক্ষা (২^১০ = ১০২৪) — বাজেটের মধ্যে সর্বোচ্চ লক্ষ্য; ছোট সমস্যা তাই নিশ্চিত সর্বোত্তম ফল */
 export function optimize(base: Baseline, budgetTk: number, goal: "carbon" | "money" = "carbon") {
-  let best = { mask: 0, score: -1, res: evaluate([], base) };
+  let best = { mask: 0, score: goal === "carbon" ? -1 : 0, res: evaluate([], base) };
   const n = PROJECTS.length;
   for (let mask = 0; mask < 1 << n; mask++) {
     const sel = PROJECTS.filter((_, i) => mask & (1 << i));
     const r = evaluate(sel, base);
     if (r.capex > budgetTk) continue;
     // সমান হলে কম খরচেরটা
-    const score = (goal === "carbon" ? r.tYr : r.tkYr) - r.capex * 1e-12;
+    // কার্বন: বছরে সবচেয়ে বেশি টন কমানো; টাকা: আয়ুষ্কালে সবচেয়ে বেশি নিট লাভ (NPV) — শুধু বার্ষিক সাশ্রয় নয়
+    const score = (goal === "carbon" ? r.tYr : r.npv) - r.capex * 1e-12;
     if (score > best.score) best = { mask, score, res: r };
   }
   return { ids: PROJECTS.filter((_, i) => best.mask & (1 << i)).map((p) => p.id), ...best.res };

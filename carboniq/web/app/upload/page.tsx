@@ -9,6 +9,7 @@ import Shell from "@/components/Shell";
 type Result = {
   tonnes_co2e: number; kg_co2e: number; formula: string; ledger_hash: string; scope: number; factor_source: string;
   evidence_level: string; evidence: { file_hash: string; meter_check?: MeterCheck | null } | null;
+  attached?: boolean; bill_check?: { recorded: number; bill: number; diff_pct: number; ok: boolean };
 };
 
 const fmt = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -189,6 +190,12 @@ export default function Upload() {
             </div>
           ) : phase === "done" && result ? (
             <div>
+              {result.attached && result.bill_check && (
+                <div className={`mb-4 rounded-xl border p-4 text-sm ${result.bill_check.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+                  <p className="font-bold">{result.bill_check.ok ? "এই মাসের record-এ মূল বিল প্রমাণ হিসেবে যুক্ত হলো" : "বিল যুক্ত হলো, কিন্তু সংখ্যায় গরমিল"}</p>
+                  <p className="mt-1 text-xs">আগের record: {result.bill_check.recorded.toLocaleString()} · বিলে: {result.bill_check.bill.toLocaleString()} · পার্থক্য {result.bill_check.diff_pct}% — নতুন record হয়নি, তাই দুবার গোনা হবে না{result.bill_check.ok ? "" : "; গরমিল ledger-এ লেখা রইল, record পরীক্ষা করুন"}</p>
+                </div>
+              )}
               <div className="rounded-xl bg-[var(--ink)] p-5 text-white">
                 <p className="text-sm text-white/60">Scope {result.scope} নির্গমন</p>
                 <p className="mt-1 text-4xl font-bold text-[var(--lime)]">{fmt(result.tonnes_co2e)} <span className="text-lg">tCO₂e</span></p>

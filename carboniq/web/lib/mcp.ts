@@ -3,7 +3,7 @@
 import { FACTORS } from "./factors";
 import { verifyChain } from "./ledger";
 import { anomalies, evidenceScore, generator, intensity, type InProd } from "./insights";
-import { ledgerToRows } from "./passportRows";
+import { ledgerToRows, foldEvidence, meterOk } from "./passportRows";
 
 export type LedgerEntry = { id: number | string; payload: Record<string, any>; prev_hash: string; hash: string };
 export type LedgerSource = () => Promise<LedgerEntry[]>;
@@ -76,7 +76,7 @@ class ToolError extends Error {}
 function getEmissions(rows: LedgerEntry[], args: any) {
   const from = args?.from, to = args?.to;
   for (const m of [from, to]) if (m !== undefined && !/^\d{4}-\d{2}$/.test(m)) throw new ToolError(`মাসের ধরন ভুল: ${m} (YYYY-MM দিন)`);
-  const sel = rows.filter((e) => (!from || monthOf(e.payload) >= from) && (!to || monthOf(e.payload) <= to));
+  const sel = foldEvidence(rows).filter((e) => (!from || monthOf(e.payload) >= from) && (!to || monthOf(e.payload) <= to));
   const sum = (xs: LedgerEntry[], s?: number) => r2(xs.filter((e) => !s || e.payload.scope === s).reduce((a, e) => a + Number(e.payload.kg_co2e), 0) / 1000);
   const months = Array.from(new Set(sel.map((e) => monthOf(e.payload)))).sort();
   const out: Record<string, any> = {
@@ -88,7 +88,7 @@ function getEmissions(rows: LedgerEntry[], args: any) {
     evidence: {
       human_confirmed_L1: sel.length,
       original_bill_attached_L2: sel.filter((e) => e.payload.evidence).length,
-      meter_reading_matched: sel.filter((e) => e.payload.evidence?.meter_check?.ok).length,
+      meter_reading_matched: sel.filter((e) => meterOk(e.payload)).length,
       hash_sealed_L3: sel.length,
     },
     ledger_valid: verifyChain(rows),
@@ -102,7 +102,8 @@ function getEmissions(rows: LedgerEntry[], args: any) {
   return out;
 }
 
-function explain(rows: LedgerEntry[], args: any) {
+function explain(raw: LedgerEntry[], args: any) {
+  const rows = foldEvidence(raw);
   let hits = rows;
   if (args?.record_id) hits = rows.filter((e) => e.payload.record_id === args.record_id);
   else if (args?.month) hits = rows.filter((e) => monthOf(e.payload) === args.month && (!args.activity || e.payload.activity === args.activity));

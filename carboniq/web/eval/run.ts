@@ -9,7 +9,8 @@ import { compose, route, toolsFor, verifyAi, type Answer } from "../lib/copilot.
 import { handleRpc, type LedgerEntry } from "../lib/mcp.ts";
 import { anomalies, evidenceScore, generator, intensity, buyerShare } from "../lib/insights.ts";
 import { demoMonths, BUYERS } from "../lib/demoModel.ts";
-import { PROJECTS, evaluate, optimize } from "../lib/planner.ts";
+import { ledgerToRows } from "../lib/passportRows.ts";
+import { PROJECTS, evaluate, optimize, annuity } from "../lib/planner.ts";
 import { buildPassport, verifyPassport, newPassportId } from "../lib/passport.ts";
 import { qrMatrix } from "../lib/qr.ts";
 
@@ -74,7 +75,7 @@ const suite = (id: string, title: string, what: string) => { const s = { id, tit
 // ---------- ৪. OCR (Tesseract, নমুনা বিল) ----------
 {
   const s = suite("ocr", "OCR → সংখ্যা (end-to-end)", "বিলের ছবি → Tesseract (ben+eng) → parser → সঠিক kWh ও মাস। নমুনা বিল synthetic।");
-  const imgs: [string, number, string][] = [["sample_bill_nov2026.jpg", 126500, "2026-11"], ["sample_bill_dec2026.jpg", 118200, "2026-12"]];
+  const imgs: [string, number, string][] = [["sample_bill_sep2026.jpg", 116790, "2026-09"], ["sample_bill_oct2026.jpg", 112970, "2026-10"]];
   for (const [f, kwh, month] of imgs) {
     try {
       const text = execSync(`tesseract ${process.env.SAMPLES ?? "../samples"}/${f} - -l eng 2>/dev/null`).toString();
@@ -243,11 +244,29 @@ const R2 = E2.map((e) => ({ activity: e.payload.activity, quantity: e.payload.qu
   const ms = demoMonths(), base = { kwh: ms.reduce((a, m) => a + m.kwh, 0), gasM3: ms.reduce((a, m) => a + m.gas, 0), dieselL: ms.reduce((a, m) => a + m.diesel, 0) };
   for (const budget of [1_000_000, 5_000_000, 20_000_000]) for (const goal of ["carbon", "money"] as const) {
     const o = optimize(base, budget, goal); let better = 0;
-    for (let m = 0; m < 1 << PROJECTS.length; m++) { const r = evaluate(PROJECTS.filter((_, i) => m & (1 << i)), base); if (r.capex <= budget && (goal === "carbon" ? r.tYr : r.tkYr) > (goal === "carbon" ? o.tYr : o.tkYr) + 1e-9) better++; }
+    for (let m = 0; m < 1 << PROJECTS.length; m++) { const r = evaluate(PROJECTS.filter((_, i) => m & (1 << i)), base); if (r.capex <= budget && (goal === "carbon" ? r.tYr : r.npv) > (goal === "carbon" ? o.tYr : o.npv) + 1e-6) better++; }
     s.cases.push({ name: `৳${budget / 1e5} লাখ, লক্ষ্য ${goal === "carbon" ? "কার্বন" : "টাকা"}: সর্বোত্তম ও বাজেটের মধ্যে`, pass: better === 0 && o.capex <= budget, detail: `${o.ids.join(",")} · ${o.tYr.toFixed(0)}t` });
   }
   const two = evaluate(PROJECTS.filter((p) => p.id === "led" || p.id === "air"), base), a = evaluate(PROJECTS.filter((p) => p.id === "led"), base), b = evaluate(PROJECTS.filter((p) => p.id === "air"), base);
   s.cases.push({ name: "দুই প্রকল্প একসাথে ≤ আলাদা যোগফল (দ্বিগুণ গোনা নেই)", pass: two.kwhSaved <= a.kwhSaved + b.kwhSaved + 1e-6 });
+  const c5 = optimize(base, 500_000, "carbon"), m5 = optimize(base, 500_000, "money");
+  s.cases.push({ name: "কম বাজেটে দুই লক্ষ্য আলাদা প্রকল্প বাছে (কার্বন বনাম NPV)", pass: c5.ids.join() !== m5.ids.join() && c5.tYr >= m5.tYr && m5.npv >= c5.npv, detail: `কার্বন: ${c5.ids} · টাকা: ${m5.ids}` });
+  const led = PROJECTS.find((p) => p.id === "led")!, el = evaluate([led], base);
+  s.cases.push({ name: "NPV = বার্ষিক সাশ্রয় × annuity(আয়ু, ১০%) − বিনিয়োগ", pass: Math.abs(el.npv - (el.tkYr * annuity(led.lifeYears) - led.capexTk)) < 1 });
+}
+
+// ---------- ১১খ. পরে যুক্ত মূল বিল (append-only evidence) ----------
+{
+  const s = suite("evidence_attach", "পরে মূল বিল যুক্ত করা", "Demo বা হাতে লেখা record-এ পরে বিল দিলে নতুন record হয় না, প্রমাণ যোগ হয়, গরমিল ধরা পড়ে");
+  const base = [{ payload: { record_id: "r1", activity: "electricity", quantity: 1000, period_month: "2026-10-01", scope: 2, kg_co2e: 696, evidence_level: "L1+L3" } }];
+  const okAtt = { payload: { kind: "evidence", record_id: "r1", evidence: { file_hash: "x", meter_check: { ok: true } }, bill_check: { ok: true, diff_pct: 0 } } };
+  const badAtt = { payload: { kind: "evidence", record_id: "r1", evidence: { file_hash: "y", meter_check: { ok: true } }, bill_check: { ok: false, diff_pct: 12 } } };
+  const r1 = ledgerToRows([...base, okAtt]);
+  s.cases.push({ name: "বিল যুক্ত করলে record একটাই থাকে (দুবার গোনা নেই)", pass: r1.length === 1 && r1[0].kg_co2e === 696 });
+  s.cases.push({ name: "যুক্ত বিল → has_bill আর মিটার মিলেছে", pass: r1[0].has_bill && r1[0].meter_ok === true });
+  const r2 = ledgerToRows([...base, badAtt]);
+  s.cases.push({ name: "বিলের সংখ্যা record থেকে আলাদা হলে → মিটার 'মেলেনি'", pass: r2[0].has_bill && r2[0].meter_ok === false });
+  s.cases.push({ name: "বিল ছাড়া record → has_bill নেই", pass: !ledgerToRows(base)[0].has_bill });
 }
 
 // ---------- ১২. Carbon Passport + QR ----------

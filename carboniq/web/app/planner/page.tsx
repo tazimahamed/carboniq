@@ -22,6 +22,8 @@ export default function Planner() {
   }, [rows]);
 
   const best = useMemo(() => optimize(base, budget, goal), [base, budget, goal]);
+  const other = useMemo(() => optimize(base, budget, goal === "carbon" ? "money" : "carbon"), [base, budget, goal]);
+  const sameAsOther = best.ids.slice().sort().join() === other.ids.slice().sort().join();
   const chosen = manual ?? best.ids;
   const res = useMemo(() => evaluate(PROJECTS.filter((p) => chosen.includes(p.id)), base), [chosen, base]);
   const curve = useMemo(() => macc(base), [base]);
@@ -67,7 +69,11 @@ export default function Planner() {
               <div><p className="text-[30px] font-extrabold leading-none">{res.tYr.toFixed(0)} <span className="text-base">টন</span></p><p className="mt-1 text-xs text-white/55">বছরে CO₂e কম · মোটের {totalT ? ((res.tYr / totalT) * 100).toFixed(0) : 0}%</p></div>
               <div><p className={`text-xl font-bold ${overBudget ? "text-red-300" : ""}`}>{lakh(res.capex)}</p><p className="text-xs text-white/55">বিনিয়োগ {overBudget && "· বাজেটের বেশি"}</p></div>
               <div><p className="text-xl font-bold">{isFinite(res.paybackYears) ? `${res.paybackYears.toFixed(1)} বছর` : "—"}</p><p className="text-xs text-white/55">খরচ উঠে আসবে</p></div>
+              <div><p className={`text-xl font-bold ${res.npv < 0 ? "text-red-300" : ""}`}>{lakh(res.npv)}</p><p className="text-xs text-white/55">আয়ুষ্কালে নিট লাভ (NPV, ১০% discount)</p></div>
+              <div><p className="text-xl font-bold">{res.tLife.toFixed(0)} টন</p><p className="text-xs text-white/55">আয়ুষ্কালে মোট CO₂e কম</p></div>
             </div>
+            {!manual && sameAsOther && <p className="relative mt-4 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/75">এই বাজেটে দুই লক্ষ্যেই একই সমন্বয় সেরা হয়েছে — কম খরচের দ্রুত-লাভের প্রকল্পগুলো কার্বন আর টাকা দুই দিকেই এগিয়ে। ৳১০ লাখ বা ৳১৫০ লাখে দেখুন, ফল আলাদা হয়।</p>}
+            {!manual && !sameAsOther && <p className="relative mt-4 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/75">{goal === "carbon" ? `টাকার লক্ষ্যে বছরে ${other.tYr.toFixed(0)} টন কমত, কিন্তু NPV ${lakh(other.npv)}` : `কার্বনের লক্ষ্যে বছরে ${other.tYr.toFixed(0)} টন কমত, NPV ${lakh(other.npv)}`}</p>}
           </div>
         </div>
 
@@ -102,7 +108,7 @@ export default function Planner() {
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-        প্রকল্পের খরচ ও সাশ্রয়ের হার সাধারণ শিল্প-অনুমান (আনুমানিক); আসল প্রকল্পের আগে energy audit দরকার। একাধিক প্রকল্পের শতাংশ সাশ্রয় গুণফলে যোগ হয়, যাতে দ্বিগুণ গোনা না হয়। ভিত্তি: শেষ ১২ মাসের বিদ্যুৎ {base.kwh.toLocaleString()} kWh, গ্যাস {base.gasM3.toLocaleString()} m³, ডিজেল {base.dieselL.toLocaleString()} লিটার। {ASSUME_NOTE}।
+        প্রকল্পের খরচ ও সাশ্রয়ের হার সাধারণ শিল্প-অনুমান (আনুমানিক); আসল প্রকল্পের আগে energy audit দরকার। একাধিক প্রকল্পের শতাংশ সাশ্রয় গুণফলে যোগ হয়, যাতে দ্বিগুণ গোনা না হয়। "কার্বন" লক্ষ্যে বছরে সর্বোচ্চ টন কমানো, "টাকা" লক্ষ্যে প্রকল্পের পুরো আয়ুষ্কালের সর্বোচ্চ নিট লাভ (NPV, ১০% discount rate) বাছা হয়। ভিত্তি: শেষ ১২ মাসের বিদ্যুৎ {base.kwh.toLocaleString()} kWh, গ্যাস {base.gasM3.toLocaleString()} m³, ডিজেল {base.dieselL.toLocaleString()} লিটার। {ASSUME_NOTE}।
       </p>
     </Shell>
   );
