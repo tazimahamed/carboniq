@@ -368,6 +368,7 @@ const R2 = E2.map((e) => ({ activity: e.payload.activity, quantity: e.payload.qu
   const rt = mrv({ id: "t", name: "t", start: "2025-11", activities: ["electricity"] }, trap.rows, trap.prod);
   s.cases.push({ name: "উৎপাদন কমায় মোট কমলেও প্রতি পিসে বাড়লে আলাদা করে দেখায়", pass: rt.intensity.changePct > 0, detail: `প্রতি পিসে ${rt.intensity.changePct.toFixed(1)}%` });
   s.cases.push({ name: "Baseline ৬ মাসের কম → দাবি করে না", pass: mrv({ id: "t", name: "t", start: "2025-12", activities: ["electricity"] }, R2, PROD).status === "insufficient-data" });
+  { const fut = mrv({ id: "t", name: "boiler", start: "2026-11", activities: ["natural_gas"] }, R2, PROD); s.cases.push({ name: "ভবিষ্যতের শুরু-মাস (পরের বিল নেই) → সাশ্রয় দাবি করে না, কারণ বলে", pass: fut.status === "insufficient-data" && fut.post.months === 0 && fut.verdict.includes("কোনো বিল নেই") && fut.intensity.changePct === 0 }); }
   s.cases.push({ name: "তাপমাত্রা ডেটা ঢাকার ১২ মাসের climatology", pass: DHAKA_TEMP.length === 12 });
 }
 

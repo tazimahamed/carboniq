@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-30T00:10:31.623Z",
+  "generated_at": "2026-10-30T14:14:52.307Z",
   "node": "v22.23.4",
   "suites": [
     {
@@ -896,12 +896,16 @@
           "pass": true
         },
         {
+          "name": "ভবিষ্যতের শুরু-মাস (পরের বিল নেই) → সাশ্রয় দাবি করে না, কারণ বলে",
+          "pass": true
+        },
+        {
           "name": "তাপমাত্রা ডেটা ঢাকার ১২ মাসের climatology",
           "pass": true
         }
       ],
-      "passed": 10,
-      "total": 10
+      "passed": 11,
+      "total": 11
     },
     {
       "id": "risk",
@@ -1182,7 +1186,7 @@
     }
   ],
   "summary": {
-    "passed": 210,
-    "total": 210
+    "passed": 211,
+    "total": 211
   }
 }

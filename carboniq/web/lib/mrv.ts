@@ -147,15 +147,19 @@ export function mrv(project: MrvProject, rows: InRow[], prod: InProd[], baseline
   const baseKgPerPiece = bp ? bk / bp : 0, postKgPerPiece = pp ? pk / pp : 0;
   const intensity = {
     baseKgPerPiece, postKgPerPiece, basePieces: bp, postPieces: pp,
-    changePct: baseKgPerPiece ? ((postKgPerPiece - baseKgPerPiece) / baseKgPerPiece) * 100 : 0,
+    changePct: baseKgPerPiece && pp ? ((postKgPerPiece - baseKgPerPiece) / baseKgPerPiece) * 100 : 0,
     absChangePct: base.length && post.length ? ((pk / post.length - bk / base.length) / (bk / base.length)) * 100 : 0,
   };
 
   const cu = rss(claimed), nu = rss(ok);
   const status: MrvResult["status"] = !claimed.length ? "insufficient-data" : claimedT > cu ? "verified-savings" : "not-significant";
   const preliminary = post.length < 12 || base.length < 12;
-  const verdict = status === "insufficient-data"
-    ? "এই প্রকল্পের জ্বালানির জন্য নির্ভরযোগ্য baseline model নেই — সাশ্রয় দাবি করা যায় না"
+  const verdict = !post.length
+    ? `প্রকল্প শুরুর মাস (${project.start}) থেকে কোনো বিল নেই — প্রকল্পের পরের অন্তত ১ মাসের বিল upload করলে যাচাই হবে`
+    : base.length < 6
+      ? `প্রকল্পের আগে মাত্র ${base.length} মাসের বিল — baseline model-এর জন্য কমপক্ষে ৬ মাস লাগে`
+      : status === "insufficient-data"
+    ? "এই প্রকল্পের জ্বালানির জন্য নির্ভরযোগ্য baseline model নেই (ASHRAE 14 মানদণ্ড পূরণ হয়নি) — সাশ্রয় দাবি করা যায় না"
     : status === "verified-savings"
       ? `প্রকল্পের জ্বালানিতে ${claimedT.toFixed(1)} ± ${cu.toFixed(1)} টন CO₂e কমেছে (৯০% আস্থা)${leakage.length ? `; অন্য জ্বালানিতে বাড়তি ধরে নিট ${netT.toFixed(1)} ± ${nu.toFixed(1)} টন` : ""}`
       : `পরিমাপে ${claimedT.toFixed(1)} টন দেখা যাচ্ছে, কিন্তু অনিশ্চয়তা (±${cu.toFixed(1)}) এর চেয়ে বড় — পরিসংখ্যানগতভাবে নিশ্চিত নয়`;

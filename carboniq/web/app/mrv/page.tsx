@@ -51,9 +51,16 @@ export default function MrvPage() {
         ))}
         <button onClick={() => setShowNew((v) => !v)} className="rounded-full border border-dashed border-[var(--leaf)] px-4 py-2 text-sm font-semibold text-[var(--leaf)] hover:bg-emerald-50">+ নতুন প্রকল্প</button>
       </div>
-      {showNew && <NewProject onDone={(id) => { setShowNew(false); setSel(id); loadProjects(); }} />}
+      {showNew && <NewProject months={Array.from(new Set(rows.map((r) => r.period_month.slice(0, 7)))).sort()} onDone={(id) => { setShowNew(false); setSel(id); loadProjects(); }} />}
+      {project && !project.id.startsWith("demo-") && (
+        <button onClick={async () => { if (!confirm(`"${project.name}" প্রকল্প মুছবেন?`)) return; await fetch(`/api/projects?id=${encodeURIComponent(project.id)}`, { method: "DELETE" }); setSel(""); loadProjects(); }} className="mt-2 text-xs text-red-600 hover:underline">এই প্রকল্প মুছুন</button>
+      )}
 
-      {res && project && (
+      {res && project && res.post.months === 0 && (
+        <div className="card mt-5 p-6 text-sm"><p className="font-bold text-amber-800">যাচাই করা যাচ্ছে না</p><p className="mt-1 text-[var(--muted)]">{res.verdict}</p></div>
+      )}
+
+      {res && project && res.post.months > 0 && (
         <>
           {/* মূল ফল */}
           <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
@@ -194,7 +201,7 @@ function MrvChart({ f, start }: { f: FuelResult; start: string }) {
   );
 }
 
-function NewProject({ onDone }: { onDone: (id: string) => void }) {
+function NewProject({ onDone, months }: { onDone: (id: string) => void; months: string[] }) {
   const [name, setName] = useState(""), [start, setStart] = useState(""), [acts, setActs] = useState<string[]>(["electricity"]), [capex, setCapex] = useState("");
   const [err, setErr] = useState(""), [busy, setBusy] = useState(false);
   async function save() {
@@ -206,9 +213,10 @@ function NewProject({ onDone }: { onDone: (id: string) => void }) {
   return (
     <div className="card mt-3 grid gap-3 p-5 sm:grid-cols-2">
       <label className="text-sm"><span className="font-semibold">প্রকল্পের নাম</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="যেমন: Boiler economizer" className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2" /></label>
-      <label className="text-sm"><span className="font-semibold">কবে চালু হয়েছে</span><input type="month" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2" /></label>
+      <label className="text-sm"><span className="font-semibold">কবে চালু হয়েছে</span><input type="month" value={start} min={months[6]} max={months.at(-1)} onChange={(e) => setStart(e.target.value)} className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2" /><span className="mt-1 block text-[11px] text-[var(--muted)]">{months.length >= 7 ? `${months[6]} থেকে ${months.at(-1)}-এর মধ্যে (আগে ≥৬ মাস, পরে ≥১ মাস বিল লাগে)` : "যাচাইয়ের জন্য কমপক্ষে ৭ মাসের বিল লাগে"}</span></label>
       <div className="text-sm"><span className="font-semibold">কোন জ্বালানিতে প্রভাব</span>
         <div className="mt-1 flex flex-wrap gap-2">{ACTS.map(([k, l]) => <button key={k} onClick={() => setActs((a) => a.includes(k) ? a.filter((x) => x !== k) : [...a, k])} className={`rounded-full border px-3 py-1.5 text-xs ${acts.includes(k) ? "border-[var(--leaf)] bg-emerald-50" : "border-[var(--line)]"}`}>{l}</button>)}</div>
+        {/বয়লার|boiler|steam|স্টিম|economi/i.test(name) && !acts.includes("natural_gas") && <p className="mt-1 text-[11px] text-amber-700">বয়লার/steam প্রকল্প সাধারণত গ্যাস কমায় — &quot;গ্যাস&quot; বাছুন</p>}
       </div>
       <label className="text-sm"><span className="font-semibold">বিনিয়োগ (৳, ঐচ্ছিক)</span><input inputMode="numeric" value={capex} onChange={(e) => setCapex(e.target.value.replace(/[^\d]/g, ""))} className="mt-1 w-full rounded-xl border border-[var(--line)] px-3 py-2" /></label>
       {err && <p className="text-sm text-red-700 sm:col-span-2">{err}</p>}

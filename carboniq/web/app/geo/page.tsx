@@ -39,7 +39,17 @@ export default function GeoPage() {
 function SolarScanner() {
   const { rows } = useRecords();
   const el = useRef<HTMLDivElement>(null), map = useRef<any>(null), layer = useRef<any>(null), ghost = useRef<any>(null);
-  const [pts, setPts] = useState<LL[]>([]);
+  const [pts, rawSetPts] = useState<LL[]>([]);
+  const [sel, setSel] = useState<number | null>(null);
+  // Undo/redo: প্রতিটা বদলের আগের অবস্থা রাখা (Ctrl+Z / Ctrl+Y)
+  const hist = useRef<{ past: { pts: LL[]; closed: boolean }[]; future: { pts: LL[]; closed: boolean }[] }>({ past: [], future: [] });
+  const setPts = useRef((v: LL[] | ((p: LL[]) => LL[])) => {
+    rawSetPts((prev) => {
+      const next = typeof v === "function" ? v(prev) : v;
+      if (JSON.stringify(next) !== JSON.stringify(prev)) { hist.current.past.push({ pts: prev, closed: closedRef.current }); if (hist.current.past.length > 100) hist.current.past.shift(); hist.current.future = []; }
+      return next;
+    });
+  }).current;
   const [mode, setMode] = useState<Mode>("rect");
   const [closed, setClosed] = useState(false);
   const modeRef = useRef<Mode>("rect"); modeRef.current = mode;
@@ -99,12 +109,12 @@ function SolarScanner() {
     layer.current.clearLayers();
     if (pts.length >= 2) (closed || pts.length >= 3 ? L.polygon : L.polyline)(pts, { color: "#c6f36b", weight: 2.5, fillColor: "#c6f36b", fillOpacity: 0.3 }).addTo(layer.current);
     pts.forEach((p, i) => {
-      const icon = L.divIcon({ className: "", html: `<div style="width:14px;height:14px;border-radius:50%;background:${i === 0 && !closed ? "#fff" : "#c6f36b"};border:2px solid #0b1f17;box-shadow:0 0 0 2px #c6f36b;cursor:move"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
+      const icon = L.divIcon({ className: "", html: `<div style="width:14px;height:14px;border-radius:50%;background:${sel === i ? "#f87171" : i === 0 && !closed ? "#fff" : "#c6f36b"};border:2px solid #0b1f17;box-shadow:0 0 0 2px #c6f36b;cursor:move"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
       const mk = L.marker(p, { icon, draggable: true, autoPan: true }).addTo(layer.current);
       mk.on("dragend", (e: any) => { const ll = e.target.getLatLng(); setPts((q) => q.map((x, j) => (j === i ? { lat: ll.lat, lng: ll.lng } : x))); });
-      if (i === 0) mk.on("click", () => { if (modeRef.current === "poly" && pts.length >= 3) { setClosed(true); setMode("pan"); } });
+      mk.on("click", () => { if (i === 0 && modeRef.current === "poly" && !closedRef.current && pts.length >= 3) { setClosed(true); setMode("pan"); } else setSel(i); });
     });
-  }, [pts, closed]);
+  }, [pts, closed, sel]);
 
   useEffect(() => { // NASA POWER: সেই অবস্থানের দীর্ঘমেয়াদি গড় সূর্যালোক
     const ctl = new AbortController();
@@ -124,7 +134,32 @@ function SolarScanner() {
   const tooBig = area > MAX_ROOF_M2;
   const est = ghi && area > 0 && !tooBig && isRoof ? pvEstimate(area, ghi.ann, annualKwh, user) : null;
 
-  function start(m: Mode) { setPts([]); setClosed(false); setSaved(false); setIsRoof(false); setMode(m); }
+  function undo() { const h = hist.current, snap = h.past.pop(); if (!snap) return; h.future.push({ pts, closed }); rawSetPts(snap.pts); setClosed(snap.closed); setSel(null); }
+  function redo() { const h = hist.current, snap = h.future.pop(); if (!snap) return; h.past.push({ pts, closed }); rawSetPts(snap.pts); setClosed(snap.closed); setSel(null); }
+  function removePoint() {
+    if (sel !== null && pts.length > (closed ? 3 : 0)) { setPts(pts.filter((_, i) => i !== sel)); setSel(null); }
+    else if (mode === "poly" && !closed) setPts(pts.slice(0, -1));
+  }
+  // কীবোর্ড: Delete/Backspace বিন্দু মোছা, Ctrl+Z/Ctrl+Y, Enter শেষ, Esc বাতিল, R/P/H ধরন
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+      if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (mod && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+      else if (k === "delete" || k === "backspace") { if (pts.length) { e.preventDefault(); removePoint(); } }
+      else if (k === "enter") { if (mode === "poly" && !closed && pts.length >= 3) { setClosed(true); setMode("pan"); } }
+      else if (k === "escape") { setSel(null); if (mode !== "pan") { if (!closed) setPts([]); setMode("pan"); } }
+      else if (!mod && k === "r") start("rect");
+      else if (!mod && k === "p") start("poly");
+      else if (!mod && k === "h") setMode("pan");
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  });
+
+  function start(m: Mode) { setPts([]); setClosed(false); setSaved(false); setIsRoof(false); setSel(null); setMode(m); }
   function demoRoof() {
     const dLat = 60 / 110_574, dLng = 100 / (111_320 * Math.cos((FACTORY.lat * Math.PI) / 180));
     setPts([{ lat: FACTORY.lat - dLat / 2, lng: FACTORY.lng - dLng / 2 }, { lat: FACTORY.lat - dLat / 2, lng: FACTORY.lng + dLng / 2 }, { lat: FACTORY.lat + dLat / 2, lng: FACTORY.lng + dLng / 2 }, { lat: FACTORY.lat + dLat / 2, lng: FACTORY.lng - dLng / 2 }]);
@@ -144,19 +179,22 @@ function SolarScanner() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-      <div className="relative overflow-hidden rounded-[22px] border border-[var(--line)] bg-[#0b1f17]">
-        <div ref={el} className="h-[520px] w-full" />
+      <div className="relative self-start overflow-hidden rounded-[22px] border border-[var(--line)] bg-[#0b1f17] lg:sticky lg:top-20">
+        <div ref={el} className="h-[560px] w-full" tabIndex={0} aria-label="Satellite মানচিত্র — তীর চিহ্ন দিয়ে সরান, +/− দিয়ে zoom" />
         {mapErr && <p className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-white/70">মানচিত্র লোড হয়নি (internet দরকার) — নিচের Demo ছাদ দিয়ে হিসাব দেখুন</p>}
         <div className="pointer-events-none absolute left-3 top-3 max-w-[70%] rounded-xl bg-[rgba(7,19,14,.88)] px-3 py-2 text-xs text-white backdrop-blur">
           <p className="font-bold">{mode === "rect" ? "▭ আয়তক্ষেত্র আঁকা" : mode === "poly" ? "⬠ বহুভুজ আঁকা" : "✋ সরানো / ঠিক করা"}</p>
           {hint && <p className="text-white/70">{hint}</p>}
+          <p className="mt-1 text-[10px] text-white/45">কীবোর্ড: R আয়তক্ষেত্র · P বহুভুজ · H সরান · Enter শেষ · Del মোছা · Ctrl+Z/Y · Esc · তীর/+− মানচিত্র</p>
         </div>
         <div className="absolute inset-x-3 bottom-3 flex flex-wrap gap-2">
           {([["rect", "▭ আয়তক্ষেত্র"], ["poly", "⬠ বহুভুজ"], ["pan", "✋ সরান"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => (k === "pan" ? setMode("pan") : start(k))} className={`rounded-full px-3.5 py-1.5 text-xs font-bold shadow transition ${mode === k ? "bg-[var(--lime)] text-[var(--ink)]" : "bg-white/90 text-[var(--ink)] hover:bg-white"}`}>{l}</button>
           ))}
           <span className="mx-1 w-px bg-white/30" />
-          {mode === "poly" && !closed && pts.length > 0 && <button onClick={() => setPts((p) => p.slice(0, -1))} className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">↶ শেষ বিন্দু</button>}
+          <button onClick={undo} title="Ctrl+Z" className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">↶ Undo</button>
+          <button onClick={redo} title="Ctrl+Y" className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">↷ Redo</button>
+          {(sel !== null || (mode === "poly" && !closed && pts.length > 0)) && <button onClick={removePoint} title="Delete" className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">⌫ {sel !== null ? "বাছাই বিন্দু" : "শেষ বিন্দু"}</button>}
           {mode === "poly" && !closed && pts.length >= 3 && <button onClick={() => { setClosed(true); setMode("pan"); }} className="rounded-full bg-white px-3 py-1.5 text-xs font-bold shadow">✓ শেষ করুন</button>}
           <button onClick={() => start(mode === "pan" ? "rect" : mode)} className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">মুছুন</button>
           <button onClick={demoRoof} className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">Demo ছাদ</button>

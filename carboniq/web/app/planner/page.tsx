@@ -15,6 +15,8 @@ export default function Planner() {
   const [budget, setBudget] = useState(5_000_000);
   const [goal, setGoal] = useState<"carbon" | "money">("carbon");
   const [manual, setManual] = useState<string[] | null>(null);
+  const [edit, setEdit] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   const [geo, setGeo] = useState<{ kwp: number; kwhYr: number; capex: number | null; src?: string } | null>(null);
   // Geo-র Rooftop Solar Scanner থেকে পাঠানো ছাদ থাকলে solar প্রকল্পে সেটাই ব্যবহার
   useEffect(() => {
@@ -32,12 +34,12 @@ export default function Planner() {
     return { kwh: sum("electricity"), gasM3: sum("natural_gas"), dieselL: sum("diesel") };
   }, [rows]);
 
-  const best = useMemo(() => optimize(base, budget, goal), [base, budget, goal, geo]);
-  const other = useMemo(() => optimize(base, budget, goal === "carbon" ? "money" : "carbon"), [base, budget, goal, geo]);
+  const best = useMemo(() => optimize(base, budget, goal), [base, budget, goal, geo, tick]);
+  const other = useMemo(() => optimize(base, budget, goal === "carbon" ? "money" : "carbon"), [base, budget, goal, geo, tick]);
   const sameAsOther = best.ids.slice().sort().join() === other.ids.slice().sort().join();
   const chosen = manual ?? best.ids;
-  const res = useMemo(() => evaluate(PROJECTS.filter((p) => chosen.includes(p.id)), base), [chosen, base, geo]);
-  const curve = useMemo(() => macc(base), [base, geo]);
+  const res = useMemo(() => evaluate(PROJECTS.filter((p) => chosen.includes(p.id)), base), [chosen, base, geo, tick]);
+  const curve = useMemo(() => macc(base), [base, geo, tick]);
   const totalT = total();
   const toggle = (id: string) => setManual((m) => { const cur = m ?? best.ids; return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]; });
   const overBudget = res.capex > budget;
@@ -101,6 +103,23 @@ export default function Planner() {
                     <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{p.name}</span><span className="block truncate text-xs text-[var(--muted)]">{p.what}</span></span>
                     <span className="text-right text-xs tabular-nums"><span className="block font-semibold">{lakh(p.capexTk)}</span><span className="block text-[var(--muted)]">{one.tYr.toFixed(0)} t · {one.paybackYears.toFixed(1)} বছর</span></span>
                   </button>
+                  <div className="flex flex-wrap items-center gap-2 px-5 pb-3 text-[11px]" style={{ paddingLeft: 52 }}>
+                    {p.src ? <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800" title={p.src}>📄 প্রকল্প-স্তরে উৎস আছে</span> : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800">⚠ প্রকাশিত উৎস নেই — অনুমান</span>}
+                    <button onClick={() => setEdit(edit === p.id ? null : p.id)} className="text-[var(--leaf)] hover:underline">{edit === p.id ? "বন্ধ" : "উৎস দেখুন / নিজের মান দিন"}</button>
+                  </div>
+                  {edit === p.id && (
+                    <div className="mx-5 mb-3 space-y-2 rounded-xl bg-[var(--paper)] p-3 text-xs">
+                      {p.src && <p><b>উৎস:</b> {p.src}</p>}
+                      <p><b>কারখানা-স্তরে কীভাবে ধরা:</b> {p.basis}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label>বিনিয়োগ (৳)<input inputMode="numeric" defaultValue={p.capexTk} onBlur={(e) => { const v = Number(e.target.value.replace(/[^\d]/g, "")); if (v > 0) { p.capexTk = v; setTick((t) => t + 1); } }} className="mt-1 w-full rounded-lg border border-[var(--line)] bg-white px-2 py-1" /></label>
+                        {(["elecPct", "gasPct", "dieselPct"] as const).filter((k) => p[k] !== undefined).map((k) => (
+                          <label key={k}>{k === "elecPct" ? "মোট বিদ্যুতের" : k === "gasPct" ? "মোট গ্যাসের" : "মোট ডিজেলের"} কত % কমবে<input inputMode="decimal" defaultValue={((p[k] ?? 0) * 100).toString()} onBlur={(e) => { const v = Number(e.target.value); if (v >= 0 && v <= 100) { p[k] = v / 100; setTick((t) => t + 1); } }} className="mt-1 w-full rounded-lg border border-[var(--line)] bg-white px-2 py-1" /></label>
+                        ))}
+                      </div>
+                      <p className="text-[var(--muted)]">বদলালে optimizer, MACC আর ফল সাথে সাথে নতুন মানে হিসাব হয় (এই browser-এ, এই পাতায়)।</p>
+                    </div>
+                  )}
                 </li>
               );
             })}
