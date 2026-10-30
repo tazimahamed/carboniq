@@ -90,7 +90,7 @@ function SolarScanner() {
         setPts([{ lat: a.lat, lng: a.lng }, { lat: a.lat, lng: b.lng }, { lat: b.lat, lng: b.lng }, { lat: b.lat, lng: a.lng }]); setClosed(true); setMode("pan");
       });
       // বহুভুজ: click করে কোণ, প্রথম বিন্দুতে বা double-click-এ শেষ
-      m.on("click", (e: any) => { if (modeRef.current === "poly" && !closedRef.current) setPts((p) => [...p, { lat: e.latlng.lat, lng: e.latlng.lng }]); });
+      m.on("click", (e: any) => { if (modeRef.current === "pan") setSel(null); if (modeRef.current === "poly" && !closedRef.current) setPts((p) => [...p, { lat: e.latlng.lat, lng: e.latlng.lng }]); });
       // double-click-এর দুটো click একই জায়গায় বিন্দু যোগ করে — শেষ করার সময় পাশাপাশি একই বিন্দু বাদ
       m.on("dblclick", () => { if (modeRef.current === "poly") { setPts((p) => p.filter((x, i) => i === 0 || Math.abs(x.lat - p[i - 1].lat) + Math.abs(x.lng - p[i - 1].lng) > 1e-7)); setClosed(true); setMode("pan"); } });
       map.current = m;
@@ -107,7 +107,17 @@ function SolarScanner() {
   useEffect(() => { // আঁকা ছাদ + টেনে বদলানো যায় এমন কোণ
     const L = (window as any).L; if (!L || !layer.current) return;
     layer.current.clearLayers();
-    if (pts.length >= 2) (closed || pts.length >= 3 ? L.polygon : L.polyline)(pts, { color: "#c6f36b", weight: 2.5, fillColor: "#c6f36b", fillOpacity: 0.3 }).addTo(layer.current);
+    const whole = sel === -1;
+    if (pts.length >= 2) {
+      const shape = (closed || pts.length >= 3 ? L.polygon : L.polyline)(pts, { color: whole ? "#f87171" : "#c6f36b", weight: whole ? 3.5 : 2.5, fillColor: whole ? "#f87171" : "#c6f36b", fillOpacity: 0.3, dashArray: closed ? undefined : "6 6" }).addTo(layer.current);
+      shape.on("click", (e: any) => { if (modeRef.current === "pan" && closedRef.current) { L.DomEvent.stopPropagation(e); setSel(-1); } });
+    }
+    // কোণের মাঝখানে ছোট বিন্দু: click করলে নতুন কোণ যোগ হয় (ত্রিভুজ থেকে আবার চতুর্ভুজ ইত্যাদি)
+    if (closed && pts.length >= 3) pts.forEach((p, i) => {
+      const q = pts[(i + 1) % pts.length], mid = { lat: (p.lat + q.lat) / 2, lng: (p.lng + q.lng) / 2 };
+      const mi = L.divIcon({ className: "", html: `<div title="নতুন কোণ যোগ করুন" style="width:10px;height:10px;border-radius:50%;background:#0b1f17;border:2px solid #c6f36b;opacity:.85;cursor:copy"></div>`, iconSize: [10, 10], iconAnchor: [5, 5] });
+      L.marker(mid, { icon: mi }).addTo(layer.current).on("click", (e: any) => { L.DomEvent.stopPropagation(e); setPts((r) => [...r.slice(0, i + 1), mid, ...r.slice(i + 1)]); setSel(i + 1); });
+    });
     pts.forEach((p, i) => {
       const icon = L.divIcon({ className: "", html: `<div style="width:14px;height:14px;border-radius:50%;background:${sel === i ? "#f87171" : i === 0 && !closed ? "#fff" : "#c6f36b"};border:2px solid #0b1f17;box-shadow:0 0 0 2px #c6f36b;cursor:move"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
       const mk = L.marker(p, { icon, draggable: true, autoPan: true }).addTo(layer.current);
@@ -136,9 +146,11 @@ function SolarScanner() {
 
   function undo() { const h = hist.current, snap = h.past.pop(); if (!snap) return; h.future.push({ pts, closed }); rawSetPts(snap.pts); setClosed(snap.closed); setSel(null); }
   function redo() { const h = hist.current, snap = h.future.pop(); if (!snap) return; h.past.push({ pts, closed }); rawSetPts(snap.pts); setClosed(snap.closed); setSel(null); }
+  function clearAll() { setPts([]); setClosed(false); setSel(null); setSaved(false); setIsRoof(false); setMode("pan"); }
   function removePoint() {
-    if (sel !== null && pts.length > (closed ? 3 : 0)) { setPts(pts.filter((_, i) => i !== sel)); setSel(null); }
-    else if (mode === "poly" && !closed) setPts(pts.slice(0, -1));
+    if (sel === -1 || (sel === null && closed)) { clearAll(); return; }                       // পুরো আকার বাছাই, বা বাছাই ছাড়া Delete → সব মুছুন
+    if (sel !== null) { const next = pts.filter((_, i) => i !== sel); if (closed && next.length < 3) clearAll(); else { setPts(next); setSel(null); } return; }
+    if (mode === "poly" && !closed) setPts(pts.slice(0, -1));
   }
   // কীবোর্ড: Delete/Backspace বিন্দু মোছা, Ctrl+Z/Ctrl+Y, Enter শেষ, Esc বাতিল, R/P/H ধরন
   useEffect(() => {
@@ -172,33 +184,34 @@ function SolarScanner() {
   }
   function sendToPlanner() {
     if (!est) return;
-    try { localStorage.setItem("carboniq_solar", JSON.stringify({ kwp: Math.round(est.kwp), kwhYr: Math.round(est.kwhYr), capex: est.capex ? Math.round(est.capex) : null, src: "nasa", at: new Date().toISOString() })); setSaved(true); } catch { /* storage বন্ধ */ }
+    try { localStorage.setItem("carboniq_solar", JSON.stringify({ kwp: Math.round(est.kwp), kwhYr: Math.round(est.kwhYr), capex: est.capex ? Math.round(est.capex) : null, areaM2: Math.round(area), ghi: ghi?.ann, src: "nasa", at: new Date().toISOString() })); setSaved(true); } catch { /* storage বন্ধ */ }
+    window.location.href = "/planner#solar"; // Planner খুলে solar প্রকল্প দেখানো
   }
 
-  const hint = mode === "rect" ? "ছাদের এক কোণে mouse চেপে ধরে উল্টো কোণে টেনে ছাড়ুন" : mode === "poly" ? (closed ? "" : pts.length < 3 ? `কোণগুলোতে click করুন (${pts.length}টা)` : "আরো কোণ দিন, বা প্রথম বিন্দুতে / double-click করে শেষ করুন") : pts.length ? "কোণগুলো টেনে ঠিক করুন · মানচিত্র টেনে সরান" : "নিচ থেকে আঁকার ধরন বাছুন";
+  const hint = mode === "rect" ? "ছাদের এক কোণে mouse চেপে ধরে উল্টো কোণে টেনে ছাড়ুন" : mode === "poly" ? (closed ? "" : pts.length < 3 ? `কোণগুলোতে click করুন (${pts.length}টা)` : "আরো কোণ দিন, বা প্রথম বিন্দুতে / double-click করে শেষ করুন") : pts.length ? (sel === -1 ? "পুরো আকার বাছাই — Delete চাপলে মুছবে" : sel !== null ? "বাছাই কোণ — Delete চাপলে মুছবে, টেনে সরান" : "কোণ টানুন · মাঝের ছোট বিন্দুতে click করে কোণ যোগ · আকারে click করে বাছাই")  : "নিচ থেকে আঁকার ধরন বাছুন";
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
       <div className="relative self-start overflow-hidden rounded-[22px] border border-[var(--line)] bg-[#0b1f17] lg:sticky lg:top-20">
         <div ref={el} className="h-[560px] w-full" tabIndex={0} aria-label="Satellite মানচিত্র — তীর চিহ্ন দিয়ে সরান, +/− দিয়ে zoom" />
         {mapErr && <p className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-white/70">মানচিত্র লোড হয়নি (internet দরকার) — নিচের Demo ছাদ দিয়ে হিসাব দেখুন</p>}
-        <div className="pointer-events-none absolute left-3 top-3 max-w-[70%] rounded-xl bg-[rgba(7,19,14,.88)] px-3 py-2 text-xs text-white backdrop-blur">
+        <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[70%] rounded-xl bg-[rgba(7,19,14,.88)] px-3 py-2 text-xs text-white backdrop-blur">
           <p className="font-bold">{mode === "rect" ? "▭ আয়তক্ষেত্র আঁকা" : mode === "poly" ? "⬠ বহুভুজ আঁকা" : "✋ সরানো / ঠিক করা"}</p>
           {hint && <p className="text-white/70">{hint}</p>}
           <p className="mt-1 text-[10px] text-white/45">কীবোর্ড: R আয়তক্ষেত্র · P বহুভুজ · H সরান · Enter শেষ · Del মোছা · Ctrl+Z/Y · Esc · তীর/+− মানচিত্র</p>
         </div>
-        <div className="absolute inset-x-3 bottom-3 flex flex-wrap gap-2">
+        <div className="absolute inset-x-3 bottom-3 z-[500] flex flex-wrap items-center gap-1.5 rounded-2xl border border-white/10 bg-[rgba(7,19,14,.88)] p-1.5 shadow-2xl backdrop-blur">
           {([["rect", "▭ আয়তক্ষেত্র"], ["poly", "⬠ বহুভুজ"], ["pan", "✋ সরান"]] as const).map(([k, l]) => (
-            <button key={k} onClick={() => (k === "pan" ? setMode("pan") : start(k))} className={`rounded-full px-3.5 py-1.5 text-xs font-bold shadow transition ${mode === k ? "bg-[var(--lime)] text-[var(--ink)]" : "bg-white/90 text-[var(--ink)] hover:bg-white"}`}>{l}</button>
+            <button key={k} onClick={() => (k === "pan" ? setMode("pan") : start(k))} className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${mode === k ? "bg-[var(--lime)] text-[var(--ink)]" : "border border-white/15 text-white hover:bg-white/10"}`}>{l}</button>
           ))}
-          <span className="mx-1 w-px bg-white/30" />
-          <button onClick={undo} title="Ctrl+Z" className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">↶ Undo</button>
-          <button onClick={redo} title="Ctrl+Y" className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">↷ Redo</button>
-          {(sel !== null || (mode === "poly" && !closed && pts.length > 0)) && <button onClick={removePoint} title="Delete" className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">⌫ {sel !== null ? "বাছাই বিন্দু" : "শেষ বিন্দু"}</button>}
-          {mode === "poly" && !closed && pts.length >= 3 && <button onClick={() => { setClosed(true); setMode("pan"); }} className="rounded-full bg-white px-3 py-1.5 text-xs font-bold shadow">✓ শেষ করুন</button>}
-          <button onClick={() => start(mode === "pan" ? "rect" : mode)} className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">মুছুন</button>
-          <button onClick={demoRoof} className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">Demo ছাদ</button>
-          <button onClick={locate} className="rounded-full bg-white/90 px-3 py-1.5 text-xs shadow">📍 আমার অবস্থান</button>
+          <span className="mx-1 h-5 w-px bg-white/20" />
+          <button onClick={undo} title="Ctrl+Z" className="rounded-full px-3 py-1.5 text-xs text-white/80 transition hover:bg-white/10 hover:text-white">↶ Undo</button>
+          <button onClick={redo} title="Ctrl+Y" className="rounded-full px-3 py-1.5 text-xs text-white/80 transition hover:bg-white/10 hover:text-white">↷ Redo</button>
+          {pts.length > 0 && <button onClick={removePoint} title="Delete" className="rounded-full px-3 py-1.5 text-xs text-white/80 transition hover:bg-white/10 hover:text-white">⌫ {sel === -1 || (sel === null && closed) ? "আকার মুছুন" : sel !== null ? "বাছাই কোণ মুছুন" : "শেষ বিন্দু"}</button>}
+          {mode === "poly" && !closed && pts.length >= 3 && <button onClick={() => { setClosed(true); setMode("pan"); }} className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[var(--ink)]">✓ শেষ করুন</button>}
+          <button onClick={clearAll} title="সব মুছুন" className="rounded-full px-3 py-1.5 text-xs text-white/80 transition hover:bg-white/10 hover:text-white">🗑 সব মুছুন</button>
+          <button onClick={demoRoof} className="rounded-full px-3 py-1.5 text-xs text-white/80 transition hover:bg-white/10 hover:text-white">Demo ছাদ</button>
+          <button onClick={locate} className="rounded-full px-3 py-1.5 text-xs text-white/80 transition hover:bg-white/10 hover:text-white">📍 আমার অবস্থান</button>
         </div>
         {geoErr && <p className="absolute right-3 top-14 rounded-lg bg-red-50 px-3 py-1.5 text-xs text-red-700">{geoErr}</p>}
       </div>

@@ -17,13 +17,14 @@ export default function Planner() {
   const [manual, setManual] = useState<string[] | null>(null);
   const [edit, setEdit] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  const [geo, setGeo] = useState<{ kwp: number; kwhYr: number; capex: number | null; src?: string } | null>(null);
+  const [geo, setGeo] = useState<{ kwp: number; kwhYr: number; capex: number | null; areaM2?: number; ghi?: number; src?: string } | null>(null);
   // Geo-র Rooftop Solar Scanner থেকে পাঠানো ছাদ থাকলে solar প্রকল্পে সেটাই ব্যবহার
   useEffect(() => {
     try {
       const g = JSON.parse(localStorage.getItem("carboniq_solar") || "null");
       const sp = PROJECTS.find((p) => p.id === "solar");
-      if (g && sp && g.kwp > 0 && g.kwhYr > 0) { sp.name = `ছাদে solar (${g.kwp} kWp, আপনার ছাদ)`; sp.what = "Geo-তে আঁকা ছাদ ও NASA POWER সূর্যালোক থেকে"; sp.capexTk = g.capex ?? Math.round((13_500_000 / 300) * g.kwp); sp.solarKwhYr = g.kwhYr; setGeo(g); }
+      if (g && sp && g.kwp > 0 && g.kwhYr > 0) { sp.name = `ছাদে solar (${g.kwp} kWp, আপনার ছাদ)`; sp.what = "Geo-তে আঁকা ছাদ ও NASA POWER সূর্যালোক থেকে"; sp.capexTk = g.capex ?? Math.round((13_500_000 / 300) * g.kwp); sp.solarKwhYr = g.kwhYr; setGeo(g);
+        if (location.hash === "#solar") setTimeout(() => document.getElementById("p-solar")?.scrollIntoView({ behavior: "smooth", block: "center" }), 300); }
     } catch { /* storage বন্ধ */ }
   }, []);
 
@@ -51,6 +52,14 @@ export default function Planner() {
 
   return (
     <Shell eyebrow="Optimize · খরচ ও কার্বন কমানো" title="বিনিয়োগ পরিকল্পনা" sub="বাজেট দিন — ১০টা সম্ভাব্য প্রকল্পের প্রতিটা সমন্বয় (১০২৪টা) পরীক্ষা করে সেরাটা বের করা হয়">
+      {geo && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm">
+          <span className="text-lg">☀</span>
+          <p className="min-w-0 flex-1"><b>Geo থেকে আপনার ছাদ যুক্ত হয়েছে:</b> {geo.areaM2 ? `${geo.areaM2.toLocaleString()} m² ছাদ · ` : ""}{geo.kwp.toLocaleString()} kWp · বছরে {Math.round(geo.kwhYr / 1000).toLocaleString()} MWh{geo.ghi ? ` (NASA POWER ${geo.ghi.toFixed(2)} kWh/m²/দিন)` : ""} · খরচ {geo.capex ? `আপনার quotation ${lakh(geo.capex)}` : "quotation দেওয়া হয়নি — Planner-এর সাধারণ অনুমান"}। নিচে &quot;ছাদে solar&quot; প্রকল্প এই মান দিয়ে হিসাব হচ্ছে।</p>
+          <a href="/geo" className="text-xs font-semibold text-[var(--leaf)] hover:underline">ছাদ বদলান</a>
+          <button onClick={() => { try { localStorage.removeItem("carboniq_solar"); } catch {} location.reload(); }} className="text-xs text-red-600 hover:underline">সরিয়ে দিন</button>
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-[1fr_1.15fr]">
         {/* নিয়ন্ত্রণ + ফল */}
         <div className="space-y-4">
@@ -97,7 +106,7 @@ export default function Planner() {
             {PROJECTS.map((p) => {
               const on = chosen.includes(p.id), one = evaluate([p], base);
               return (
-                <li key={p.id}>
+                <li key={p.id} id={`p-${p.id}`} className={p.id === "solar" && geo ? "ring-2 ring-inset ring-yellow-300" : ""}>
                   <button onClick={() => toggle(p.id)} className={`flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-[var(--paper)] ${on ? "bg-emerald-50/50" : ""}`}>
                     <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[11px] font-bold ${on ? "border-[var(--leaf)] bg-[var(--leaf)] text-white" : "border-[var(--line)]"}`}>{on ? "✓" : ""}</span>
                     <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{p.name}</span><span className="block truncate text-xs text-[var(--muted)]">{p.what}</span></span>
