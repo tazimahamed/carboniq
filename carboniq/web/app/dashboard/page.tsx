@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import TrustRow from "@/components/TrustRow";
+import Method from "@/components/Method";
 import CarbonFlow from "@/components/CarbonFlow";
 import { useRecords, type Row } from "@/lib/useRecords";
 import { ACTIVITY_LABEL } from "@/lib/factors";
 import Shell from "@/components/Shell";
 import { CountUp } from "@/components/fx";
 import { anomalies, evidenceScore, generator, intensity } from "@/lib/insights";
-import { ASSUME_NOTE } from "@/lib/assumptions";
+import { ASSUME_ROWS } from "@/lib/assumptions";
 
 const BN_MONTH = ["জানু", "ফেব্রু", "মার্চ", "এপ্রি", "মে", "জুন", "জুলা", "আগ", "সেপ্টে", "অক্টো", "নভে", "ডিসে"];
 const monthLabel = (m: string) => `${BN_MONTH[parseInt(m.slice(5, 7), 10) - 1]} ${m.slice(2, 4)}`;
@@ -239,7 +240,7 @@ export default function Dashboard() {
                 )}
                 {ins.an.length === 0 && !ins.gen.total.litres && <p className="rounded-xl bg-[var(--paper)] p-4 text-sm text-[var(--muted)]">কোনো অস্বাভাবিকতা পাওয়া যায়নি।</p>}
               </div>
-              <p className="mt-3 text-[10px] text-[var(--muted)]">{ASSUME_NOTE}। Demo ডেটা synthetic।</p>
+              <Method className="mt-3" title="দাম ও উৎস" rows={[...ASSUME_ROWS, { k: "Demo", v: "এই কারখানার তথ্য synthetic", est: true }]} />
             </div>
           </div>
 

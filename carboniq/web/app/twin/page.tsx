@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Shell from "@/components/Shell";
+import Method from "@/components/Method";
 import { useRecords } from "@/lib/useRecords";
 import { buildTwin, simulate, TWIN_ASSUME, TWIN_PROJECTS, type TwinInput } from "@/lib/twin";
 import { DHAKA_TEMP } from "@/lib/demoModel";
+import { ASSUME_ROWS } from "@/lib/assumptions";
 
 const MONTHS = ["জানু", "ফেব্রু", "মার্চ", "এপ্রি", "মে", "জুন", "জুলা", "আগ", "সেপ্টে", "অক্টো", "নভে", "ডিসে"];
 const n0 = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -82,9 +84,15 @@ export default function TwinPage() {
         </div>
       ) : <div className="h-[520px] animate-pulse rounded-[22px] bg-[#07130e]" />}
 
-      <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-        কীভাবে: শেষ ১২ মাসের বিল দিয়ে বিদ্যুৎ = b₀ + b₁·উৎপাদন + b₂·তাপমাত্রা আর গ্যাস = b₀ + b₁·উৎপাদন (least squares), অনিশ্চয়তা prediction interval থেকে। ডিজেল: {TWIN_ASSUME.note}। প্রকল্পের সাশ্রয় Planner-এর একই হার (আনুমানিক); দাম ও গুণক আনুমানিক। Demo তথ্য synthetic; জুলাই ২০২৬-এর পর demo-তে একটা দক্ষতা-প্রকল্প আছে, তাই twin বর্তমান অবস্থার কাছাকাছি।
-      </p>
+      <Method className="mt-4" rows={[
+        { k: "Model", v: "বিদ্যুৎ = b₀ + b₁·উৎপাদন + b₂·তাপমাত্রা; গ্যাস = b₀ + b₁·উৎপাদন (least squares, শেষ ১২ মাস)", src: "কারখানার ledger; অনিশ্চয়তা prediction interval থেকে" },
+        { k: "নির্ভুলতা", v: "প্রতিটা মাস বাদ দিয়ে বাকিগুলো দিয়ে শিখে সেই মাস অনুমান (leave-one-out MAPE)" },
+        { k: "তাপমাত্রা", v: "ঢাকার মাসিক গড়", est: true, src: "আনুমানিক climatology" },
+        { k: "ডিজেল", v: TWIN_ASSUME.note, est: true },
+        { k: "Zone-ভাগ", v: "Knit composite কারখানার সাধারণ ভাগ", est: true, src: "sub-meter দিলে আসল হবে" },
+        { k: "প্রকল্প", v: "Planner-এর একই সাশ্রয়-হার", est: true },
+        ...ASSUME_ROWS,
+      ]} />
     </Shell>
   );
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-30T14:34:58.581Z",
+  "generated_at": "2026-10-30T15:03:40.384Z",
   "node": "v22.23.4",
   "suites": [
     {
@@ -631,7 +631,7 @@
         {
           "name": "জেনারেটর grid-এর চেয়ে দামি → বাড়তি খরচ ধনাত্মক",
           "pass": true,
-          "detail": "৳1435830"
+          "detail": "৳2088349"
         }
       ],
       "passed": 6,
@@ -670,7 +670,7 @@
         {
           "name": "৳200 লাখ, লক্ষ্য টাকা: সর্বোত্তম ও বাজেটের মধ্যে",
           "pass": true,
-          "detail": "led,vfd,hvac,solar,econ,steam,meter · 553t"
+          "detail": "led,hvac,solar,econ,steam,ips,meter · 531t"
         },
         {
           "name": "দুই প্রকল্প একসাথে ≤ আলাদা যোগফল (দ্বিগুণ গোনা নেই)",

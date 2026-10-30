@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Shell from "@/components/Shell";
+import Method from "@/components/Method";
 import { useRecords } from "@/lib/useRecords";
 import { mrv, type FuelResult, type MrvProject } from "@/lib/mrv";
 import { verificationStatus, type VEvent } from "@/lib/verification";
@@ -132,9 +133,15 @@ export default function MrvPage() {
           {/* যাচাইয়ের তিন স্তর */}
           {vs && <VerificationLadder vs={vs} targetType="project" targetId={project.id} chain={chain} onAdded={loadEvents} disabled={needsMig} />}
 
-          <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-            পদ্ধতি: IPMVP Option C-র ধারণা (পুরো কারখানার মাসিক বিল) — baseline মাসগুলোতে ব্যবহার = b₀ + b₁·উৎপাদন (+ b₂·তাপমাত্রা) least-squares; প্রকল্পের পরের মাসে "adjusted baseline" থেকে আসল ব্যবহার বাদ দিয়ে সাশ্রয়। অনিশ্চয়তা OLS prediction variance থেকে (প্রতি মাসের noise + coefficient-এর অনিশ্চয়তা), ৯০% t-বণ্টন; জ্বালানিগুলোর অনিশ্চয়তা স্বাধীন ধরে বর্গমূলে যোগ। গুণক: প্রতিটা record-এ সিল করা মান। এটা IPMVP-অনুসারী পদ্ধতি, IPMVP সনদ নয়; demo তথ্য synthetic (জুলাই ২০২৬ থেকে বিদ্যুতে ৭% কম বসানো — model সেটা কতটা ফিরে পায় তা Eval-এ পরীক্ষিত)।
-          </p>
+          <Method className="mt-4" rows={[
+            { k: "পদ্ধতি", v: "পুরো কারখানার মাসিক বিল দিয়ে baseline model → প্রকল্পের পরে 'প্রকল্প না করলে কত হতো' − আসল", src: "IPMVP Core Concepts 2022, Option C (EVO)" },
+            { k: "Model", v: "ব্যবহার = b₀ + b₁·উৎপাদন (+ b₂·তাপমাত্রা), least squares" },
+            { k: "Model-এর মান", v: "CV(RMSE) ≤ ২০%, |NMBE| ≤ ৫% (মাসিক)", src: "ASHRAE Guideline 14 — regression baseline" },
+            { k: "অনিশ্চয়তা", v: "OLS prediction variance, ৯০% t-বণ্টন; জ্বালানিগুলো বর্গমূলে যোগ" },
+            { k: "Leakage", v: "অন্য জ্বালানিতে প্রত্যাশার চেয়ে বেশি হলে নিট থেকে বাদ", src: "GHG Protocol for Project Accounting — secondary effects" },
+            { k: "গুণক", v: "প্রতিটা record-এ সিল করা মান (Ember, DESNZ)" },
+            { k: "Demo", v: "Synthetic তথ্য; জুলাই ২০২৬ থেকে বিদ্যুতে ৭% কম বসানো — model সেটা ফিরে পায় কিনা Eval-এ পরীক্ষিত", est: true },
+          ]} />
         </>
       )}
     </Shell>

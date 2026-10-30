@@ -7,6 +7,7 @@ import { ledgerToRows, foldEvidence, meterOk } from "./passportRows";
 import { mrv, type MrvProject } from "./mrv";
 import { monteCarlo, periodRisk, recordRisks } from "./risk";
 import { DEMO_PROJECT } from "./demoModel";
+import { ASSUME_NOTE } from "./assumptions";
 
 export type LedgerEntry = { id: number | string; payload: Record<string, any>; prev_hash: string; hash: string };
 export type LedgerSource = () => Promise<LedgerEntry[]>;
@@ -194,7 +195,7 @@ export async function handleRpc(msg: RpcReq, load: LedgerSource, loadProd: Produ
             by_month_kg_per_piece: it.map((x) => ({ month: x.month, pieces: x.pieces, kg_per_piece: Math.round(x.kgPerPiece * 10000) / 10000 })),
             anomalies: anomalies(rr, prod).map((a) => ({ month: a.month, activity: a.activity, pct_above_expected: Math.round(a.pct * 1000) / 10, actual: a.actual, expected: Math.round(a.expected), est_loss_tk: Math.round(a.tkLoss), extra_tco2e: Math.round(a.extraT * 100) / 100, hint: a.detail })),
             generator: { litres: g.total.litres, est_extra_cost_tk: Math.round(g.total.tkExtra), extra_tco2e_vs_grid: Math.round(g.total.tExtra * 100) / 100, peak_month: g.peak?.month ?? null },
-            assumptions: "আনুমানিক দাম: বিদ্যুৎ ৳১১/kWh, গ্যাস ৳৩০/m³, ডিজেল ৳১০৫/লিটার",
+            assumptions: ASSUME_NOTE,
           }));
         }
         if (name === "get_reduction") {

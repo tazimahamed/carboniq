@@ -4,6 +4,7 @@ import Shell from "@/components/Shell";
 import { useRecords } from "@/lib/useRecords";
 import { MAX_ROOF_M2, parsePower, polygonAreaM2, pvEstimate, SOLAR_SRC, SOLAR_USER_DEFAULT, type SolarUser } from "@/lib/solar";
 import { FACTORS } from "@/lib/factors";
+import Method from "@/components/Method";
 
 // Leaflet CDN থেকে (হালকা, ফোনে চলে) — একবারই লোড
 const LEAFLET = "https://unpkg.com/leaflet@1.9.4/dist/leaflet";
@@ -225,7 +226,7 @@ function SolarScanner() {
           {area > 0 && !tooBig && (
             <label className="relative mt-4 flex cursor-pointer items-start gap-2 rounded-lg bg-white/10 p-3 text-xs">
               <input type="checkbox" checked={isRoof} onChange={(e) => setIsRoof(e.target.checked)} className="mt-0.5 accent-[var(--lime)]" />
-              <span>আমি নিশ্চিত করছি যে আঁকা এলাকাটা <b>আমার কারখানার ছাদ</b>। <span className="text-white/60">(System ছবি দেখে ছাদ, মাঠ না পানি তা চিনতে পারে না — আপনি যা আঁকবেন তার জ্যামিতি থেকে হিসাব হয়)</span></span>
+              <span title="ছবি দেখে ছাদ চেনা হয় না — আঁকা এলাকার জ্যামিতি থেকে হিসাব হয়">এটা <b>আমার কারখানার ছাদ</b></span>
             </label>
           )}
           {est ? (
@@ -244,7 +245,7 @@ function SolarScanner() {
                   <input inputMode="numeric" value={user.capexTkPerKwp ?? ""} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ""); setUser({ ...user, capexTkPerKwp: v ? Number(v) : null }); }} placeholder="quotation দিলে payback দেখাবে" className="mt-1 w-full rounded-lg bg-white/10 px-2.5 py-1.5 text-white placeholder:text-white/40" /></label>
                 {est.payback !== null && <p className="text-white/80">বিনিয়োগ ৳{((est.capex ?? 0) / 1e7).toFixed(2)} কোটি → সরল payback <b>{est.payback.toFixed(1)} বছর</b> (grid মূল্য ৳{SOLAR_SRC.tariffTk.v}/kWh ধরে)</p>}
               </div>
-              <button onClick={sendToPlanner} className="btn-lime relative mt-4 w-full rounded-full py-2.5 text-sm font-bold">{saved ? "✓ Planner-এ পাঠানো হয়েছে" : "এই ছাদ Planner-এ ব্যবহার করুন →"}</button>
+              <button onClick={sendToPlanner} className="btn-lime relative mt-4 w-full rounded-full py-2.5 text-sm font-bold">{saved ? "Planner খুলছে…" : "Planner-এ এই ছাদ দিয়ে হিসাব করুন →"}</button>
             </>
           ) : !tooBig && <p className="relative mt-3 text-sm text-white/60">{!area ? "মানচিত্রে ছাদ আঁকুন বা \"Demo ছাদ\" চাপুন" : ghiErr ? "এই অবস্থানের সূর্যালোক (NASA POWER) পাওয়া যায়নি — বানানো মান দিয়ে হিসাব দেখানো হচ্ছে না। পরে আবার চেষ্টা করুন।" : !isRoof ? "ওপরে নিশ্চিত করলে হিসাব দেখাবে" : "সূর্যালোক লোড হচ্ছে…"}</p>}
         </div>
@@ -281,7 +282,7 @@ function SolarScanner() {
                 ].map(([a, b, c]) => <tr key={a} className="border-t border-[var(--line)]"><td className="py-1.5 pr-2 font-semibold">{a}</td><td className="py-1.5 pr-2 tabular-nums">{b}<p className="text-[10px] text-[var(--muted)]">{c}</p></td></tr>)}
               </tbody>
             </table>
-            <p className="mt-2 text-[11px] text-amber-800">মডেল করা হয়নি: {SOLAR_SRC.notModeled}। চূড়ান্ত সিদ্ধান্তের আগে site survey আর supplier-এর quotation দরকার।</p>
+            <p className="mt-3 rounded-lg bg-[var(--paper)] px-3 py-2 text-[11px] text-[var(--muted)]"><b className="text-[var(--ink)]">সীমা:</b> তাপজনিত ক্ষতি, কাত ও ছায়া মডেল করা হয়নি · চূড়ান্ত সিদ্ধান্তে site survey লাগবে</p>
           </div>
         )}
       </div>
@@ -318,9 +319,11 @@ function GridFacts() {
           <p className="mt-2 text-[var(--muted)]">Grid প্রায় পুরোটা জীবাশ্ম জ্বালানিনির্ভর বলে প্রতি kWh-এ নির্গমন বেশি। তাই কারখানার Scope 2 (কেনা বিদ্যুৎ) বড়, আর ছাদের solar বা দক্ষতা-প্রকল্পে প্রতি kWh সাশ্রয়ে বেশি CO₂ কমে।</p>
           <p className="mt-2 text-[var(--muted)]">বাংলাদেশে একটাই জাতীয় grid, তাই অঞ্চলভেদে আলাদা প্রকাশিত গুণক নেই — CarbonIQ জাতীয় গুণক ব্যবহার করে।</p>
         </div>
-        <div className="card p-5 text-[11px] leading-relaxed text-[var(--muted)]">
-          <p><b className="text-[var(--ink)]">উৎস:</b> Ember, Bangladesh country profile (২০২৫-এর তথ্য: ৯৮% জীবাশ্ম, ২% কম-কার্বন, ১.৫% সৌর ও বায়ু; বিশ্বের কম-কার্বন গড় ৪৩%) আর Ember Yearly Electricity Data (২০২৪, ৬৯৬ g CO₂e/kWh, CC-BY-4.0)।</p>
-          <p className="mt-2">আগে এখানে প্রতিটা বিদ্যুৎকেন্দ্রের মানচিত্র ছিল (WRI Global Power Plant Database ২০২১)। যাচাই করতে গিয়ে কয়েকটা কেন্দ্রের অবস্থান আর ক্ষমতায় স্পষ্ট ভুল পাওয়া গেছে, তাই সেটা সরিয়ে শুধু যাচাইযোগ্য জাতীয় সংখ্যা রাখা হয়েছে।</p>
+        <div className="card p-5">
+          <Method rows={[
+            { k: "৯৮% জীবাশ্ম, ২% কম-কার্বন", v: "বাংলাদেশ, ২০২৫; বিশ্বের কম-কার্বন গড় ৪৩%", src: "Ember — Bangladesh country profile" },
+            { k: "Grid গুণক", v: "৬৯৬ g CO₂e/kWh (২০২৪, lifecycle)", src: "Ember Yearly Electricity Data, CC-BY-4.0" },
+          ]} />
           <a href="https://ember-energy.org/countries-and-regions/bangladesh/" target="_blank" rel="noreferrer" className="mt-3 inline-block font-semibold text-[var(--leaf)] hover:underline">Ember-এ দেখুন ↗</a>
         </div>
       </div>

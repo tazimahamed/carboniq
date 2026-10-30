@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Shell from "@/components/Shell";
+import Method from "@/components/Method";
 import { useRecords } from "@/lib/useRecords";
 import { PROJECTS, evaluate, macc, optimize, type Baseline } from "@/lib/planner";
-import { ASSUME_NOTE } from "@/lib/assumptions";
+import { ASSUME_ROWS } from "@/lib/assumptions";
 import { intensity, monthBn } from "@/lib/insights";
 import { targetRisk } from "@/lib/target";
 
@@ -148,9 +149,14 @@ export default function Planner() {
         </div>
       </div>
 
-      <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-        প্রকল্পের খরচ ও সাশ্রয়ের হার সাধারণ শিল্প-অনুমান (আনুমানিক); আসল প্রকল্পের আগে energy audit দরকার। একাধিক প্রকল্পের শতাংশ সাশ্রয় গুণফলে যোগ হয়, যাতে দ্বিগুণ গোনা না হয়। "কার্বন" লক্ষ্যে বছরে সর্বোচ্চ টন কমানো, "টাকা" লক্ষ্যে প্রকল্পের পুরো আয়ুষ্কালের সর্বোচ্চ নিট লাভ (NPV, ১০% discount rate) বাছা হয়। ভিত্তি: শেষ ১২ মাসের বিদ্যুৎ {base.kwh.toLocaleString()} kWh, গ্যাস {base.gasM3.toLocaleString()} m³, ডিজেল {base.dieselL.toLocaleString()} লিটার। {ASSUME_NOTE}।{geo ? ` Solar প্রকল্প: Geo-তে আঁকা আপনার ছাদ (${geo.kwp} kWp, বছরে ${Math.round(geo.kwhYr / 1000)} MWh, NASA POWER সূর্যালোক; খরচ ${geo.capex ? "আপনার quotation" : "Planner-এর সাধারণ অনুমান"})।` : ""}
-      </p>
+      <Method className="mt-4" rows={[
+        { k: "ভিত্তি", v: `শেষ ১২ মাস: বিদ্যুৎ ${base.kwh.toLocaleString()} kWh · গ্যাস ${base.gasM3.toLocaleString()} m³ · ডিজেল ${base.dieselL.toLocaleString()} লিটার`, src: "কারখানার hash-সিল করা ledger" },
+        { k: "একাধিক প্রকল্প", v: "শতাংশ সাশ্রয় গুণফলে যোগ হয় (দ্বিগুণ গোনা হয় না); solar বাকি grid বিদ্যুৎ থেকে কমে" },
+        { k: "লক্ষ্য", v: "কার্বন = বছরে সর্বোচ্চ টন কমানো; টাকা = আয়ুষ্কালে সর্বোচ্চ NPV (১০% discount rate)" },
+        { k: "প্রকল্পের খরচ ও সাশ্রয়", v: "প্রতিটা প্রকল্পের নিচে উৎস/অনুমান লেখা; নিজের audit ও quotation দিয়ে বদলান", est: true },
+        ...ASSUME_ROWS,
+        ...(geo ? [{ k: "Solar", v: `Geo-তে আঁকা ছাদ: ${geo.kwp} kWp, বছরে ${Math.round(geo.kwhYr / 1000)} MWh`, src: geo.capex ? "NASA POWER সূর্যালোক · আপনার quotation" : "NASA POWER সূর্যালোক · খরচ সাধারণ অনুমান", est: !geo.capex }] : []),
+      ]} />
     </Shell>
   );
 }
@@ -235,7 +241,11 @@ function TargetCard({ rows, production, planCutPct }: { rows: Parameters<typeof 
         <div className="absolute top-1 h-10 w-0.5 bg-red-500" style={{ left: pos(r.target) }}><span className="absolute -top-4 left-1 whitespace-nowrap text-[10px] font-bold text-red-600">লক্ষ্য {r.target.toFixed(3)}</span></div>
       </div>
       <p className="mt-6 text-sm">{r.text}। পরিকল্পনার প্রকল্পগুলো নিলে অনুমান <b>{r.withPlan.toFixed(3)} kg/পিস</b> {r.withPlan <= r.target ? "— লক্ষ্যের নিচে ✓" : "— এখনো লক্ষ্যের উপরে, বাজেট বাড়ান বা আরো প্রকল্প নিন"}।</p>
-      <p className="mt-1 text-[11px] text-[var(--muted)]">শুরু = প্রথম ৩ মাসের গড়; এখন = শেষ ৩ মাসের গড়; ধারা প্রতি মাসে {r.slopePctPerMonth > 0 ? "+" : ""}{r.slopePctPerMonth.toFixed(2)}%। পরিকল্পনার প্রভাব = বার্ষিক কমানো ÷ মোট নির্গমন (আনুমানিক)।</p>
+      <Method className="mt-2" rows={[
+        { k: "শুরু / এখন", v: "প্রথম ৩ মাসের গড় / শেষ ৩ মাসের গড় (kg CO₂e প্রতি পিস)" },
+        { k: "পূর্বাভাস", v: `রৈখিক ধারা (প্রতি মাসে ${r.slopePctPerMonth > 0 ? "+" : ""}${r.slopePctPerMonth.toFixed(2)}%), ৯০% prediction interval` },
+        { k: "পরিকল্পনার প্রভাব", v: "বার্ষিক কমানো ÷ মোট নির্গমন", est: true },
+      ]} />
     </div>
   );
 }
