@@ -456,10 +456,12 @@ const R2 = E2.map((e) => ({ activity: e.payload.activity, quantity: e.payload.qu
   const lat = 24, dLat = 60 / 110_574, dLng = 100 / (111_320 * Math.cos((lat * Math.PI) / 180));
   const area = polygonAreaM2([{ lat, lng: 90 }, { lat, lng: 90 + dLng }, { lat: lat + dLat, lng: 90 + dLng }, { lat: lat + dLat, lng: 90 }]);
   s.cases.push({ name: "ছাদের ক্ষেত্রফল: ১০০×৬০ m আয়তক্ষেত্র → ৬,০০০ m² (±০.৫%)", pass: Math.abs(area - 6000) / 6000 < 0.005, detail: `${area.toFixed(0)} m²` });
-  const pv = pvEstimate(6000, 4.6, 1e9);
-  s.cases.push({ name: "Solar সূত্র হাতে মেলে: ৬,০০০×০.৭×০.২ = ৮৪০ kWp; ৮৪০×৪.৬×৩৬৫×০.৭৮ kWh", pass: Math.abs(pv.kwp - 840) < 1e-9 && Math.abs(pv.kwhYr - 840 * 4.6 * 365 * 0.78) < 1e-6 });
-  { const q = pvEstimate(6000, 4.6, 1_000_000); s.cases.push({ name: "চাহিদা কম হলে প্রস্তাবিত আকার দিনের লোডে (৬০%) সীমিত, বাড়তি প্যানেল ধরা হয় না", pass: q.limitedByLoad && Math.abs(q.used - 600_000) < 1e-6 && q.kwp < q.fitKwp, detail: `${q.kwp.toFixed(0)} kWp (ছাদে ধরে ${q.fitKwp.toFixed(0)})` }); }
-  { const big = pvEstimate(1_108_817, 4.37, 1_326_940); s.cases.push({ name: "বিশাল এলাকা আঁকলেও payback অযৌক্তিক হয় না (আকার চাহিদায় সীমিত)", pass: big.payback < 10, detail: `${big.payback.toFixed(1)} বছর` }); }
+  const pv = pvEstimate(6000, 4.6, 1e9, { usablePct: 60, daytimePct: 60, capexTkPerKwp: null });
+  const kwp = (6000 * 0.6 * 550 / (2.278 * 1.134)) / 1000;
+  s.cases.push({ name: "Solar সূত্র হাতে মেলে: ৬,০০০ m² × ৬০% × (৫৫০ W ÷ ২.৫৮ m²); ফলন = GHI × ৩৬৫ × (১−০.১৪) × ০.৯৬", pass: Math.abs(pv.kwp - kwp) < 1e-9 && Math.abs(pv.kwhYr - kwp * 4.6 * 365 * 0.86 * 0.96) < 1e-6, detail: `${pv.kwp.toFixed(1)} kWp` });
+  { const q = pvEstimate(6000, 4.6, 1_000_000); s.cases.push({ name: "চাহিদা কম হলে আকার দিনের চাহিদায় সীমিত, বাড়তি প্যানেল ধরা হয় না", pass: q.limitedByLoad && Math.abs(q.kwhYr - 600_000) < 1e-6 && q.kwp < q.fitKwp }); }
+  { const q = pvEstimate(6000, 4.6, 1_000_000); s.cases.push({ name: "Quotation না দিলে খরচ/payback বানিয়ে দেখায় না", pass: q.capex === null && q.payback === null }); }
+  { const q = pvEstimate(6000, 4.6, 1_000_000, { usablePct: 60, daytimePct: 60, capexTkPerKwp: 50_000 }); s.cases.push({ name: "Quotation দিলে payback = খরচ ÷ (kWh × BERC ৳১০.৬৩)", pass: Math.abs(q.payback! - (q.kwp * 50_000) / (q.kwhYr * 10.63)) < 1e-9, detail: `${q.payback!.toFixed(1)} বছর` }); }
   const series = R2.length ? (await import("../lib/insights.ts")).intensity(R2, PROD) : [];
   const t = targetRisk(series, 10, "2027-10", 0)!;
   s.cases.push({ name: "লক্ষ্য: পূর্বাভাসের সীমার সাথে ঝুঁকির শ্রেণী সামঞ্জস্যপূর্ণ", pass: !!t && ((t.risk === "বেশি" && t.lo > t.target) || (t.risk === "কম" && t.hi <= t.target) || (t.risk === "মাঝারি" && t.lo <= t.target && t.hi > t.target)), detail: t ? `${t.risk} · লক্ষ্য ${t.target.toFixed(3)} · সীমা ${t.lo.toFixed(3)}–${t.hi.toFixed(3)}` : "" });

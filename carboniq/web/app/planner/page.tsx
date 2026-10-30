@@ -15,13 +15,13 @@ export default function Planner() {
   const [budget, setBudget] = useState(5_000_000);
   const [goal, setGoal] = useState<"carbon" | "money">("carbon");
   const [manual, setManual] = useState<string[] | null>(null);
-  const [geo, setGeo] = useState<{ kwp: number; kwhYr: number; capex: number; src?: string } | null>(null);
+  const [geo, setGeo] = useState<{ kwp: number; kwhYr: number; capex: number | null; src?: string } | null>(null);
   // Geo-র Rooftop Solar Scanner থেকে পাঠানো ছাদ থাকলে solar প্রকল্পে সেটাই ব্যবহার
   useEffect(() => {
     try {
       const g = JSON.parse(localStorage.getItem("carboniq_solar") || "null");
       const sp = PROJECTS.find((p) => p.id === "solar");
-      if (g && sp && g.kwp > 0 && g.kwhYr > 0) { sp.name = `ছাদে solar (${g.kwp} kWp, আপনার ছাদ)`; sp.what = "Geo-তে আঁকা ছাদ ও NASA POWER সূর্যালোক থেকে"; sp.capexTk = g.capex; sp.solarKwhYr = g.kwhYr; setGeo(g); }
+      if (g && sp && g.kwp > 0 && g.kwhYr > 0) { sp.name = `ছাদে solar (${g.kwp} kWp, আপনার ছাদ)`; sp.what = "Geo-তে আঁকা ছাদ ও NASA POWER সূর্যালোক থেকে"; sp.capexTk = g.capex ?? Math.round((13_500_000 / 300) * g.kwp); sp.solarKwhYr = g.kwhYr; setGeo(g); }
     } catch { /* storage বন্ধ */ }
   }, []);
 
@@ -121,7 +121,7 @@ export default function Planner() {
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-        প্রকল্পের খরচ ও সাশ্রয়ের হার সাধারণ শিল্প-অনুমান (আনুমানিক); আসল প্রকল্পের আগে energy audit দরকার। একাধিক প্রকল্পের শতাংশ সাশ্রয় গুণফলে যোগ হয়, যাতে দ্বিগুণ গোনা না হয়। "কার্বন" লক্ষ্যে বছরে সর্বোচ্চ টন কমানো, "টাকা" লক্ষ্যে প্রকল্পের পুরো আয়ুষ্কালের সর্বোচ্চ নিট লাভ (NPV, ১০% discount rate) বাছা হয়। ভিত্তি: শেষ ১২ মাসের বিদ্যুৎ {base.kwh.toLocaleString()} kWh, গ্যাস {base.gasM3.toLocaleString()} m³, ডিজেল {base.dieselL.toLocaleString()} লিটার। {ASSUME_NOTE}।{geo ? ` Solar প্রকল্প: Geo-তে আঁকা আপনার ছাদ (${geo.kwp} kWp, বছরে ${Math.round(geo.kwhYr / 1000)} MWh, ${geo.src === "nasa" ? "NASA POWER সূর্যালোক" : "অফলাইন গড় সূর্যালোক"})।` : ""}
+        প্রকল্পের খরচ ও সাশ্রয়ের হার সাধারণ শিল্প-অনুমান (আনুমানিক); আসল প্রকল্পের আগে energy audit দরকার। একাধিক প্রকল্পের শতাংশ সাশ্রয় গুণফলে যোগ হয়, যাতে দ্বিগুণ গোনা না হয়। "কার্বন" লক্ষ্যে বছরে সর্বোচ্চ টন কমানো, "টাকা" লক্ষ্যে প্রকল্পের পুরো আয়ুষ্কালের সর্বোচ্চ নিট লাভ (NPV, ১০% discount rate) বাছা হয়। ভিত্তি: শেষ ১২ মাসের বিদ্যুৎ {base.kwh.toLocaleString()} kWh, গ্যাস {base.gasM3.toLocaleString()} m³, ডিজেল {base.dieselL.toLocaleString()} লিটার। {ASSUME_NOTE}।{geo ? ` Solar প্রকল্প: Geo-তে আঁকা আপনার ছাদ (${geo.kwp} kWp, বছরে ${Math.round(geo.kwhYr / 1000)} MWh, NASA POWER সূর্যালোক; খরচ ${geo.capex ? "আপনার quotation" : "Planner-এর সাধারণ অনুমান"})।` : ""}
       </p>
     </Shell>
   );

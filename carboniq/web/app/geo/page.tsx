@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Shell from "@/components/Shell";
 import { useRecords } from "@/lib/useRecords";
-import { MAX_ROOF_M2, parsePower, polygonAreaM2, pvEstimate, SOLAR_ASSUME } from "@/lib/solar";
+import { MAX_ROOF_M2, parsePower, polygonAreaM2, pvEstimate, SOLAR_SRC, SOLAR_USER_DEFAULT, type SolarUser } from "@/lib/solar";
 import { FACTORS } from "@/lib/factors";
 
 // Leaflet CDN থেকে (হালকা, ফোনে চলে) — একবারই লোড
@@ -44,7 +44,10 @@ function SolarScanner() {
   const [closed, setClosed] = useState(false);
   const modeRef = useRef<Mode>("rect"); modeRef.current = mode;
   const closedRef = useRef(false); closedRef.current = closed;
-  const [ghi, setGhi] = useState<{ ann: number; monthly: number[]; src: "nasa" | "fallback" } | null>(null);
+  const [ghi, setGhi] = useState<{ ann: number; monthly: number[] } | null>(null);
+  const [ghiErr, setGhiErr] = useState(false);
+  const [isRoof, setIsRoof] = useState(false);
+  const [user, setUser] = useState<SolarUser>(SOLAR_USER_DEFAULT);
   const [mapErr, setMapErr] = useState(false);
   const [saved, setSaved] = useState(false);
   const [geoErr, setGeoErr] = useState("");
@@ -106,8 +109,10 @@ function SolarScanner() {
   useEffect(() => { // NASA POWER: সেই অবস্থানের দীর্ঘমেয়াদি গড় সূর্যালোক
     const ctl = new AbortController();
     const u = `https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude=${center.lng.toFixed(2)}&latitude=${center.lat.toFixed(2)}&format=JSON`;
-    fetch(u, { signal: ctl.signal }).then((r) => r.json()).then((j) => { const p = parsePower(j); setGhi(p ? { ...p, src: "nasa" } : { ann: SOLAR_ASSUME.fallbackGhi, monthly: [], src: "fallback" }); })
-      .catch((e) => { if (e?.name !== "AbortError") setGhi({ ann: SOLAR_ASSUME.fallbackGhi, monthly: [], src: "fallback" }); });
+    setGhiErr(false);
+    // বানানো গড় নয়: NASA না পেলে হিসাব দেখানো হয় না
+    fetch(u, { signal: ctl.signal }).then((r) => r.json()).then((j) => { const p = parsePower(j); if (p) setGhi(p); else { setGhi(null); setGhiErr(true); } })
+      .catch((e) => { if (e?.name !== "AbortError") { setGhi(null); setGhiErr(true); } });
     return () => ctl.abort();
   }, [center.lat.toFixed(2), center.lng.toFixed(2)]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -117,9 +122,9 @@ function SolarScanner() {
   }, [rows]);
   const area = pts.length >= 3 ? polygonAreaM2(pts) : 0;
   const tooBig = area > MAX_ROOF_M2;
-  const est = ghi && area > 0 && !tooBig ? pvEstimate(area, ghi.ann, annualKwh) : null;
+  const est = ghi && area > 0 && !tooBig && isRoof ? pvEstimate(area, ghi.ann, annualKwh, user) : null;
 
-  function start(m: Mode) { setPts([]); setClosed(false); setSaved(false); setMode(m); }
+  function start(m: Mode) { setPts([]); setClosed(false); setSaved(false); setIsRoof(false); setMode(m); }
   function demoRoof() {
     const dLat = 60 / 110_574, dLng = 100 / (111_320 * Math.cos((FACTORY.lat * Math.PI) / 180));
     setPts([{ lat: FACTORY.lat - dLat / 2, lng: FACTORY.lng - dLng / 2 }, { lat: FACTORY.lat - dLat / 2, lng: FACTORY.lng + dLng / 2 }, { lat: FACTORY.lat + dLat / 2, lng: FACTORY.lng + dLng / 2 }, { lat: FACTORY.lat + dLat / 2, lng: FACTORY.lng - dLng / 2 }]);
@@ -132,7 +137,7 @@ function SolarScanner() {
   }
   function sendToPlanner() {
     if (!est) return;
-    try { localStorage.setItem("carboniq_solar", JSON.stringify({ kwp: Math.round(est.kwp), kwhYr: Math.round(est.kwhYr), capex: Math.round(est.capex), src: ghi?.src, at: new Date().toISOString() })); setSaved(true); } catch { /* storage বন্ধ */ }
+    try { localStorage.setItem("carboniq_solar", JSON.stringify({ kwp: Math.round(est.kwp), kwhYr: Math.round(est.kwhYr), capex: est.capex ? Math.round(est.capex) : null, src: "nasa", at: new Date().toISOString() })); setSaved(true); } catch { /* storage বন্ধ */ }
   }
 
   const hint = mode === "rect" ? "ছাদের এক কোণে mouse চেপে ধরে উল্টো কোণে টেনে ছাড়ুন" : mode === "poly" ? (closed ? "" : pts.length < 3 ? `কোণগুলোতে click করুন (${pts.length}টা)` : "আরো কোণ দিন, বা প্রথম বিন্দুতে / double-click করে শেষ করুন") : pts.length ? "কোণগুলো টেনে ঠিক করুন · মানচিত্র টেনে সরান" : "নিচ থেকে আঁকার ধরন বাছুন";
@@ -166,18 +171,31 @@ function SolarScanner() {
           <p className="relative text-sm text-white/60">আঁকা ছাদ</p>
           <p className="relative text-3xl font-extrabold tabular-nums">{area ? Math.round(area).toLocaleString() : "—"} <span className="text-base font-semibold text-white/60">m²</span></p>
           {tooBig && <p className="relative mt-3 rounded-lg bg-amber-300/15 px-3 py-2 text-xs text-amber-200">এটা {MAX_ROOF_M2.toLocaleString()} m²-এর বেশি — একটা কারখানার ছাদের জন্য অস্বাভাবিক বড়। Zoom করে শুধু ছাদটা আঁকুন।</p>}
+          {area > 0 && !tooBig && (
+            <label className="relative mt-4 flex cursor-pointer items-start gap-2 rounded-lg bg-white/10 p-3 text-xs">
+              <input type="checkbox" checked={isRoof} onChange={(e) => setIsRoof(e.target.checked)} className="mt-0.5 accent-[var(--lime)]" />
+              <span>আমি নিশ্চিত করছি যে আঁকা এলাকাটা <b>আমার কারখানার ছাদ</b>। <span className="text-white/60">(System ছবি দেখে ছাদ, মাঠ না পানি তা চিনতে পারে না — আপনি যা আঁকবেন তার জ্যামিতি থেকে হিসাব হয়)</span></span>
+            </label>
+          )}
           {est ? (
             <>
               <div className="relative mt-4 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
                 <div><p className="text-2xl font-extrabold text-[var(--lime)]">{Math.round(est.kwp).toLocaleString()} kWp</p><p className="text-xs text-white/55">প্রস্তাবিত আকার{est.limitedByLoad ? ` (ছাদে ধরে ${Math.round(est.fitKwp).toLocaleString()})` : ""}</p></div>
                 <div><p className="text-2xl font-extrabold">{Math.round(est.kwhYr / 1000).toLocaleString()} MWh</p><p className="text-xs text-white/55">বছরে উৎপাদন</p></div>
                 <div><p className="text-2xl font-extrabold">{est.tYr.toFixed(0)} t</p><p className="text-xs text-white/55">বছরে CO₂e কম</p></div>
-                <div><p className="text-2xl font-extrabold">{isFinite(est.payback) ? `${est.payback.toFixed(1)} বছর` : "—"}</p><p className="text-xs text-white/55">payback · ৳{(est.capex / 1e7).toFixed(2)} কোটি</p></div>
+                <div><p className="text-2xl font-extrabold">${Math.round(est.savingUsd).toLocaleString()}</p><p className="text-xs text-white/55">বছরে নিট সাশ্রয় (IEEFA হারে)</p></div>
               </div>
-              {est.limitedByLoad && <p className="relative mt-3 text-[11px] text-white/55">ছাদে বেশি ধরলেও কারখানার দিনের বিদ্যুৎ-চাহিদার (বছরের grid বিদ্যুতের ৬০%) বেশি বসালে বাড়তি বিদ্যুৎ কাজে লাগে না, তাই আকার সেখানে সীমিত।</p>}
-              <button onClick={sendToPlanner} className="btn-lime relative mt-5 w-full rounded-full py-2.5 text-sm font-bold">{saved ? "✓ Planner-এ পাঠানো হয়েছে" : "এই ছাদ Planner-এ ব্যবহার করুন →"}</button>
+              <div className="relative mt-4 space-y-3 rounded-xl bg-white/[0.06] p-3 text-xs">
+                <p className="font-semibold text-white/80">আপনার কারখানার মান (বদলান)</p>
+                <label className="block"><span className="flex justify-between text-white/70"><span>ছাদের কত অংশে প্যানেল বসবে</span><b className="text-white">{user.usablePct}%</b></span><input type="range" min={30} max={90} step={5} value={user.usablePct} onChange={(e) => setUser({ ...user, usablePct: Number(e.target.value) })} className="w-full accent-[var(--lime)]" /></label>
+                <label className="block"><span className="flex justify-between text-white/70"><span>বিদ্যুতের কত অংশ দিনের বেলা লাগে</span><b className="text-white">{user.daytimePct}%</b></span><input type="range" min={30} max={90} step={5} value={user.daytimePct} onChange={(e) => setUser({ ...user, daytimePct: Number(e.target.value) })} className="w-full accent-[var(--lime)]" /></label>
+                <label className="block text-white/70">Supplier-এর quotation (৳ প্রতি kWp, ঐচ্ছিক)
+                  <input inputMode="numeric" value={user.capexTkPerKwp ?? ""} onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, ""); setUser({ ...user, capexTkPerKwp: v ? Number(v) : null }); }} placeholder="quotation দিলে payback দেখাবে" className="mt-1 w-full rounded-lg bg-white/10 px-2.5 py-1.5 text-white placeholder:text-white/40" /></label>
+                {est.payback !== null && <p className="text-white/80">বিনিয়োগ ৳{((est.capex ?? 0) / 1e7).toFixed(2)} কোটি → সরল payback <b>{est.payback.toFixed(1)} বছর</b> (grid মূল্য ৳{SOLAR_SRC.tariffTk.v}/kWh ধরে)</p>}
+              </div>
+              <button onClick={sendToPlanner} className="btn-lime relative mt-4 w-full rounded-full py-2.5 text-sm font-bold">{saved ? "✓ Planner-এ পাঠানো হয়েছে" : "এই ছাদ Planner-এ ব্যবহার করুন →"}</button>
             </>
-          ) : !tooBig && <p className="relative mt-3 text-sm text-white/60">মানচিত্রে ছাদ আঁকুন বা &quot;Demo ছাদ&quot; চাপুন</p>}
+          ) : !tooBig && <p className="relative mt-3 text-sm text-white/60">{!area ? "মানচিত্রে ছাদ আঁকুন বা \"Demo ছাদ\" চাপুন" : ghiErr ? "এই অবস্থানের সূর্যালোক (NASA POWER) পাওয়া যায়নি — বানানো মান দিয়ে হিসাব দেখানো হচ্ছে না। পরে আবার চেষ্টা করুন।" : !isRoof ? "ওপরে নিশ্চিত করলে হিসাব দেখাবে" : "সূর্যালোক লোড হচ্ছে…"}</p>}
         </div>
 
         <div className="card p-5 text-sm">
@@ -185,17 +203,36 @@ function SolarScanner() {
           {ghi ? (
             <>
               <p className="mt-1 text-2xl font-extrabold tabular-nums">{ghi.ann.toFixed(2)} <span className="text-sm font-semibold text-[var(--muted)]">kWh/m²/দিন</span></p>
-              <p className={`text-xs ${ghi.src === "nasa" ? "text-[var(--leaf)]" : "text-amber-700"}`}>{ghi.src === "nasa" ? `উৎস: NASA POWER climatology (all-sky, ${center.lat.toFixed(2)}°, ${center.lng.toFixed(2)}°)` : "NASA POWER পাওয়া যায়নি — বাংলাদেশের মোটামুটি গড় (অফলাইন অনুমান)"}</p>
+              <p className="text-xs text-[var(--leaf)]">উৎস: NASA POWER climatology (all-sky) · {center.lat.toFixed(2)}°N, {center.lng.toFixed(2)}°E</p>
               {ghi.monthly.length === 12 && (
                 <div className="mt-3 flex h-16 items-end gap-1">
                   {ghi.monthly.map((v, i) => <div key={i} className="flex-1 rounded-t bg-yellow-400/80" style={{ height: `${(v / Math.max(...ghi.monthly)) * 100}%` }} title={`${["জানু", "ফেব্রু", "মার্চ", "এপ্রি", "মে", "জুন", "জুলা", "আগ", "সেপ্টে", "অক্টো", "নভে", "ডিসে"][i]}: ${v} kWh/m²/দিন`} />)}
                 </div>
               )}
-              {est && <p className="mt-2 text-xs text-[var(--muted)]">ফলন = {ghi.ann.toFixed(2)} × ৩৬৫ × PR ০.৭৮ ≈ {Math.round(est.yieldKwhPerKwp).toLocaleString()} kWh/kWp/বছর · কারখানার বছরের grid বিদ্যুতের {(est.shareOfGrid * 100).toFixed(0)}%</p>}
             </>
-          ) : <p className="mt-2 text-xs text-[var(--muted)]">লোড হচ্ছে…</p>}
-          <p className="mt-3 text-[11px] leading-relaxed text-[var(--muted)]">অনুমান: {SOLAR_ASSUME.note}; grid গুণক {FACTORS[0].kgPerUnit} kg/kWh (Ember)। এটা প্রাথমিক অনুমান — ছায়া, ছাদের গঠন আর ভার বহন যাচাই করতে site survey দরকার।</p>
+          ) : <p className="mt-2 text-xs text-[var(--muted)]">{ghiErr ? "NASA POWER থেকে পাওয়া যায়নি" : "লোড হচ্ছে…"}</p>}
         </div>
+
+        {est && ghi && (
+          <div className="card p-5 text-xs">
+            <p className="text-sm font-bold">হিসাব ধাপে ধাপে</p>
+            <table className="mt-3 w-full">
+              <tbody className="align-top">
+                {[
+                  ["আঁকা এলাকা", `${Math.round(area).toLocaleString()} m²`, "আপনার আঁকা কোণগুলোর জ্যামিতি (shoelace সূত্র)"],
+                  ["প্যানেলের এলাকা", `× ${user.usablePct}% = ${Math.round(est.panelM2).toLocaleString()} m²`, "আপনার দেওয়া মান"],
+                  ["ছাদে ধরে", `× ${Math.round(SOLAR_SRC.moduleWpPerM2.v)} W/m² = ${Math.round(est.fitKwp).toLocaleString()} kWp`, SOLAR_SRC.moduleWpPerM2.src],
+                  ["প্রতি kWp-এ বছরে", `${ghi.ann.toFixed(2)} × ৩৬৫ × ${est.perf.toFixed(3)} = ${Math.round(est.yieldKwhPerKwp).toLocaleString()} kWh`, `${SOLAR_SRC.ghiSrc}; ${SOLAR_SRC.pvwattsLoss.src}; ${SOLAR_SRC.inverterEff.src}`],
+                  ["দিনের চাহিদার সীমা", `${annualKwh.toLocaleString()} kWh × ${user.daytimePct}% ÷ ফলন = ${Math.round((annualKwh * user.daytimePct) / 100 / est.yieldKwhPerKwp).toLocaleString()} kWp`, "কারখানার শেষ ১২ মাসের grid বিদ্যুৎ (ledger) × আপনার দেওয়া দিনের অংশ"],
+                  ["প্রস্তাবিত আকার", `${Math.round(est.kwp).toLocaleString()} kWp → ${Math.round(est.kwhYr).toLocaleString()} kWh/বছর`, "দুটোর ছোটটা — বাড়তি প্যানেল কাজে লাগে না"],
+                  ["CO₂e কম", `× ${FACTORS[0].kgPerUnit} kg/kWh = ${est.tYr.toFixed(1)} t`, "Ember ২০২৪ বাংলাদেশ grid গুণক"],
+                  ["নিট সাশ্রয়", `× $${SOLAR_SRC.savingUsd.v} = $${Math.round(est.savingUsd).toLocaleString()}`, SOLAR_SRC.savingUsd.src],
+                ].map(([a, b, c]) => <tr key={a} className="border-t border-[var(--line)]"><td className="py-1.5 pr-2 font-semibold">{a}</td><td className="py-1.5 pr-2 tabular-nums">{b}<p className="text-[10px] text-[var(--muted)]">{c}</p></td></tr>)}
+              </tbody>
+            </table>
+            <p className="mt-2 text-[11px] text-amber-800">মডেল করা হয়নি: {SOLAR_SRC.notModeled}। চূড়ান্ত সিদ্ধান্তের আগে site survey আর supplier-এর quotation দরকার।</p>
+          </div>
+        )}
       </div>
     </div>
   );
